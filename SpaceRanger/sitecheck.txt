@@ -1,13 +1,13 @@
 spaceranger sitecheck (spaceranger-2.0.1)
 Copyright (c) 2021 10x Genomics, Inc.  All rights reserved.
 -------------------------------------------------------------------------------
-tor  6 jul 2023 09:49:16 CEST
+tor  9 nov 2023 11:55:53 CET
 
 =====================================================================
 System Info
 uname -a
 ---------------------------------------------------------------------
-Linux minerva-HP-Linux 5.15.0-71-generic #78~20.04.1-Ubuntu SMP Wed Apr 19 11:26:48 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+Linux minerva-HP-Linux 5.15.0-84-generic #93~20.04.1-Ubuntu SMP Wed Sep 6 16:15:40 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
 =====================================================================
 
 =====================================================================
@@ -36,7 +36,7 @@ VERSION_ID="20.04"
 Kernel Build
 cat /proc/version
 ---------------------------------------------------------------------
-Linux version 5.15.0-71-generic (buildd@lcy02-amd64-111) (gcc (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0, GNU ld (GNU Binutils for Ubuntu) 2.34) #78~20.04.1-Ubuntu SMP Wed Apr 19 11:26:48 UTC 2023
+Linux version 5.15.0-84-generic (buildd@lcy02-amd64-005) (gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0, GNU ld (GNU Binutils for Ubuntu) 2.34) #93~20.04.1-Ubuntu SMP Wed Sep 6 16:15:40 UTC 2023
 =====================================================================
 
 =====================================================================
@@ -78,7 +78,7 @@ fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush 
 Memory Total
 grep MemTotal /proc/meminfo | cut -d ':' -f 2 | sed 's/^[ \t]*//'
 ---------------------------------------------------------------------
-65728452 kB
+65716160 kB
 =====================================================================
 
 =====================================================================
@@ -88,41 +88,41 @@ df -Ph | awk '{print $2, $3, $4}'
 Size Used Avail
 32G 0 32G
 6,3G 2,1M 6,3G
-46G 25G 19G
-32G 48M 32G
+46G 27G 17G
+32G 26M 32G
 5,0M 4,0K 5,0M
 32G 0 32G
 128K 128K 0
-92M 92M 0
-1,1G 1,1G 0
-82M 82M 0
-77M 77M 0
-77M 77M 0
 350M 350M 0
-219M 219M 0
+64M 64M 0
+74M 74M 0
+64M 64M 0
 13M 13M 0
-46M 46M 0
-350M 350M 0
+77M 77M 0
 219M 219M 0
+56M 56M 0
+350M 350M 0
+46M 46M 0
+159M 159M 0
+41M 41M 0
+82M 82M 0
+92M 92M 0
+497M 497M 0
+219M 219M 0
+74M 74M 0
+77M 77M 0
+653G 536G 85G
 96M 32M 65M
 6,8T 6,4T 78G
-653G 552G 69G
-6,3G 316K 6,3G
-32G 328K 32G
-56M 56M 0
-54M 54M 0
-74M 74M 0
-461M 461M 0
-467M 467M 0
+6,3G 156K 6,3G
 1,1G 1,1G 0
+497M 497M 0
+41M 41M 0
+1,1G 1,1G 0
+167M 167M 0
 56M 56M 0
-54M 54M 0
-64M 64M 0
-158M 158M 0
-74M 74M 0
-7,3T 5,4T 2,0T
-74M 74M 0
-64M 64M 0
+7,3T 5,9T 1,5T
+17T 12T 4,9T
 =====================================================================
 
 =====================================================================
@@ -131,9 +131,9 @@ mount | cut -d ' ' -f 5,6
 ---------------------------------------------------------------------
 sysfs (rw,nosuid,nodev,noexec,relatime)
 proc (rw,nosuid,nodev,noexec,relatime)
-devtmpfs (rw,nosuid,noexec,relatime,size=32823736k,nr_inodes=8205934,mode=755,inode64)
+devtmpfs (rw,nosuid,noexec,relatime,size=32817372k,nr_inodes=8204343,mode=755,inode64)
 devpts (rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000)
-tmpfs (rw,nosuid,nodev,noexec,relatime,size=6572848k,mode=755,inode64)
+tmpfs (rw,nosuid,nodev,noexec,relatime,size=6571616k,mode=755,inode64)
 ext4 (rw,relatime,errors=remount-ro)
 securityfs (rw,nosuid,nodev,noexec,relatime)
 tmpfs (rw,nosuid,nodev,inode64)
@@ -144,19 +144,19 @@ cgroup (rw,nosuid,nodev,noexec,relatime,xattr,name=systemd)
 pstore (rw,nosuid,nodev,noexec,relatime)
 efivarfs (rw,nosuid,nodev,noexec,relatime)
 bpf (rw,nosuid,nodev,noexec,relatime,mode=700)
-cgroup (rw,nosuid,nodev,noexec,relatime,perf_event)
-cgroup (rw,nosuid,nodev,noexec,relatime,misc)
-cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
-cgroup (rw,nosuid,nodev,noexec,relatime,net_cls,net_prio)
 cgroup (rw,nosuid,nodev,noexec,relatime,cpuset)
 cgroup (rw,nosuid,nodev,noexec,relatime,memory)
-cgroup (rw,nosuid,nodev,noexec,relatime,pids)
-cgroup (rw,nosuid,nodev,noexec,relatime,rdma)
 cgroup (rw,nosuid,nodev,noexec,relatime,cpu,cpuacct)
+cgroup (rw,nosuid,nodev,noexec,relatime,pids)
 cgroup (rw,nosuid,nodev,noexec,relatime,devices)
-cgroup (rw,nosuid,nodev,noexec,relatime,freezer)
+cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
+cgroup (rw,nosuid,nodev,noexec,relatime,perf_event)
+cgroup (rw,nosuid,nodev,noexec,relatime,rdma)
 cgroup (rw,nosuid,nodev,noexec,relatime,blkio)
-autofs (rw,relatime,fd=28,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=18381)
+cgroup (rw,nosuid,nodev,noexec,relatime,misc)
+cgroup (rw,nosuid,nodev,noexec,relatime,net_cls,net_prio)
+cgroup (rw,nosuid,nodev,noexec,relatime,freezer)
+autofs (rw,relatime,fd=28,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=22966)
 hugetlbfs (rw,relatime,pagesize=2M)
 mqueue (rw,nosuid,nodev,noexec,relatime)
 debugfs (rw,nosuid,nodev,noexec,relatime)
@@ -175,22 +175,23 @@ squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 binfmt_misc (rw,nosuid,nodev,noexec,relatime)
+ext4 (rw,relatime)
 vfat (rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro)
 ext4 (rw,relatime)
-ext4 (rw,relatime)
-tmpfs (rw,nosuid,nodev,relatime,size=6572844k,mode=700,uid=1000,gid=1000,inode64)
+tmpfs (rw,nosuid,nodev,relatime,size=6571616k,mode=700,uid=1000,gid=1000,inode64)
 fuse.gvfsd-fuse (rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
 fuse (rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
-tmpfs (rw,nosuid,nodev,noexec,relatime,size=6572848k,mode=755,inode64)
+tmpfs (rw,nosuid,nodev,noexec,relatime,size=6571616k,mode=755,inode64)
 nsfs (rw)
-tmpfs (rw,nosuid,nodev,relatime,mode=755,inode64)
 nsfs (rw)
-squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
-squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
-squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
-squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
-squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
@@ -198,10 +199,9 @@ squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
 nsfs (rw)
 squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+nsfs (rw)
 type exfat
-type squashfs
-nsfs (rw)
-squashfs (ro,nodev,relatime,errors=continue,x-gdu.hide)
+fuse.sshfs (rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
 =====================================================================
 
 =====================================================================
@@ -212,7 +212,7 @@ core file size          (blocks, -c) 0
 data seg size           (kbytes, -d) unlimited
 scheduling priority             (-e) 0
 file size               (blocks, -f) unlimited
-pending signals                 (-i) 256435
+pending signals                 (-i) 256385
 max locked memory       (kbytes, -l) 65536
 max memory size         (kbytes, -m) unlimited
 open files                      (-n) 8192
@@ -221,7 +221,7 @@ POSIX message queues     (bytes, -q) 819200
 real-time priority              (-r) 0
 stack size              (kbytes, -s) 8192
 cpu time               (seconds, -t) unlimited
-max user processes              (-u) 256435
+max user processes              (-u) 256385
 virtual memory          (kbytes, -v) unlimited
 file locks                      (-x) unlimited
 =====================================================================
@@ -234,7 +234,7 @@ core file size          (blocks, -c) unlimited
 data seg size           (kbytes, -d) unlimited
 scheduling priority             (-e) 0
 file size               (blocks, -f) unlimited
-pending signals                 (-i) 256435
+pending signals                 (-i) 256385
 max locked memory       (kbytes, -l) 65536
 max memory size         (kbytes, -m) unlimited
 open files                      (-n) 1048576
@@ -243,7 +243,7 @@ POSIX message queues     (bytes, -q) 819200
 real-time priority              (-r) 0
 stack size              (kbytes, -s) unlimited
 cpu time               (seconds, -t) unlimited
-max user processes              (-u) 256435
+max user processes              (-u) 256385
 virtual memory          (kbytes, -v) unlimited
 file locks                      (-x) unlimited
 =====================================================================
@@ -253,7 +253,7 @@ Global File Limit
 cat /proc/sys/fs/file-{max,nr}
 ---------------------------------------------------------------------
 9223372036854775807
-18912	0	9223372036854775807
+22208	0	9223372036854775807
 =====================================================================
 
 =====================================================================
@@ -317,62 +317,62 @@ always [madvise] never
 cgroups
 cat /proc/self/cgroup
 ---------------------------------------------------------------------
-13:blkio:/user.slice
-12:freezer:/
-11:devices:/user.slice
-10:cpu,cpuacct:/user.slice
+13:freezer:/
+12:net_cls,net_prio:/
+11:misc:/
+10:blkio:/user.slice
 9:rdma:/
-8:pids:/user.slice/user-1000.slice/user@1000.service
-7:memory:/user.slice/user-1000.slice/user@1000.service
-6:cpuset:/
-5:net_cls,net_prio:/
-4:hugetlb:/
-3:misc:/
-2:perf_event:/
-1:name=systemd:/user.slice/user-1000.slice/user@1000.service/gnome-launched-rstudio.desktop-588276.scope
-0::/user.slice/user-1000.slice/user@1000.service/gnome-launched-rstudio.desktop-588276.scope
+8:perf_event:/
+7:hugetlb:/
+6:devices:/user.slice
+5:pids:/user.slice/user-1000.slice/user@1000.service
+4:cpu,cpuacct:/user.slice
+3:memory:/user.slice/user-1000.slice/user@1000.service
+2:cpuset:/
+1:name=systemd:/user.slice/user-1000.slice/user@1000.service/gnome-launched-rstudio.desktop-2307985.scope
+0::/user.slice/user-1000.slice/user@1000.service/gnome-launched-rstudio.desktop-2307985.scope
 =====================================================================
 
 =====================================================================
 cgroup mem stats
 cat /sys/fs/cgroup/memory/user.slice/user-1000.slice/user@1000.service/memory.stat
 ---------------------------------------------------------------------
-cache 19059785728
-rss 5017255936
+cache 42714382336
+rss 10340835328
 rss_huge 0
-shmem 1321971712
-mapped_file 647098368
-dirty 36864
+shmem 648998912
+mapped_file 514531328
+dirty 3526656
 writeback 0
-swap 118949113856
-pgpgin 10696806745
-pgpgout 10690688784
-pgfault 8346596822
-pgmajfault 7055265
-inactive_anon 4915871744
-active_anon 1548423168
-inactive_file 6403584000
-active_file 11334230016
-unevictable 942747648
+swap 46185848832
+pgpgin 19761439551
+pgpgout 19748655701
+pgfault 40621254202
+pgmajfault 48466257
+inactive_anon 9911009280
+active_anon 804143104
+inactive_file 36844904448
+active_file 5220478976
+unevictable 429645824
 hierarchical_memory_limit 9223372036854771712
 hierarchical_memsw_limit 9223372036854771712
-total_cache 19059785728
-total_rss 5017255936
+total_cache 42714382336
+total_rss 10340835328
 total_rss_huge 0
-total_shmem 1321971712
-total_mapped_file 647098368
-total_dirty 36864
+total_shmem 648998912
+total_mapped_file 514531328
+total_dirty 3526656
 total_writeback 0
-total_swap 118949113856
-total_pgpgin 10696806745
-total_pgpgout 10690688784
-total_pgfault 8346596822
-total_pgmajfault 7055265
-total_inactive_anon 4915871744
-total_active_anon 1548423168
-total_inactive_file 6403584000
-total_active_file 11334230016
-total_unevictable 942747648
+total_swap 46185848832
+total_pgpgin 19761439551
+total_pgpgout 19748655701
+total_pgfault 40621254202
+total_pgmajfault 48466257
+total_inactive_anon 9911009280
+total_active_anon 804143104
+total_inactive_file 36844904448
+total_active_file 5220478976
+total_unevictable 429645824
 =====================================================================
 
 =====================================================================
@@ -444,9 +444,9 @@ which java
 Java Version
 java -version 2>&1 | cat
 ---------------------------------------------------------------------
-openjdk version "11.0.19" 2023-04-18
-OpenJDK Runtime Environment (build 11.0.19+7-post-Ubuntu-0ubuntu120.04.1)
-OpenJDK 64-Bit Server VM (build 11.0.19+7-post-Ubuntu-0ubuntu120.04.1, mixed mode, sharing)
+openjdk version "11.0.20.1" 2023-08-24
+OpenJDK Runtime Environment (build 11.0.20.1+1-post-Ubuntu-0ubuntu120.04)
+OpenJDK 64-Bit Server VM (build 11.0.20.1+1-post-Ubuntu-0ubuntu120.04, mixed mode, sharing)
 =====================================================================
 
 =====================================================================
