@@ -83,7 +83,7 @@ write.table(all.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.markers.filt.top100, 
-            file = "Clusters.markers.filt.top100.csv",
+            file = "Clusters.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 
 
@@ -120,7 +120,7 @@ write.table(FTE.markers.filt,
 
 
 write.table(FTE.markers.filt.top100, 
-            file = "Clusters.0vs1.markers.filt.top100.csv",
+            file = "Clusters.0vs1.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 
 
@@ -156,7 +156,7 @@ write.table(FTE.f.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(FTE.f.markers.filt.top100, 
-            file = "Clusters.0vs1.fimbrial.markers.filt.top100.csv",
+            file = "Clusters.0vs1.fimbrial.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 
 #' Immune clusters 
@@ -188,7 +188,7 @@ write.table(immune.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(immune.markers.filt.top100, 
-            file = "Cluster.10vs11.markers.filt.top100.csv",
+            file = "Cluster.10vs11.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 
 #' Immune clusters fimbria 
@@ -222,7 +222,7 @@ write.table(Immune.f.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(Immune.f.markers.filt.top100, 
-            file = "Cluster.10vs11.fimbrial.markers.filt.top100.csv",
+            file = "Cluster.10vs11.fimbrial.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 
 
@@ -259,7 +259,7 @@ write.table(all.f.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.f.markers.filt.top100, 
-            file = "Clusters.FimbrialvsProximal.markers.filt.top100.csv",
+            file = "Clusters.FimbrialvsProximal.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 
 
@@ -297,7 +297,7 @@ write.table(all.b1.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.b1.markers.filt.top100, 
-            file = "Clusters.BRCA1vs2.markers.filt.top100.csv",
+            file = "Clusters.BRCA1vs2.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T) 
 
 #' Find BRCA1 fimbrial markers in each cluster 
@@ -333,7 +333,7 @@ write.table(all.b1.f.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.b1.f.markers.filt.top100, 
-            file = "Clusters.BRCA1vs2.fimbrial.markers.filt.top100.csv",
+            file = "Clusters.BRCA1vs2.fimbrial.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T) 
 
 #' Find variant c.3048_3052dup (patients PO2 and PO40) markers in each cluster 
@@ -369,7 +369,7 @@ write.table(all.v1.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.v1.markers.filt.top100, 
-            file = "Clusters.c3048_3052dupvsRest.markers.filt.top100.csv",
+            file = "Clusters.c3048_3052dupvsRest.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T) 
 
 #' Find variant c.3048_3052dup (patients PO2 and PO40) 
@@ -406,7 +406,7 @@ write.table(all.v1.f.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.v1.f.markers.filt.top100, 
-            file = "Clusters.c3048_3052dupvsRest.fimbrial.markers.filt.top100.csv",
+            file = "Clusters.c3048_3052dupvsRest.fimbrial.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T) 
 
 #' Find variant c.1082_1092del (patients PO6, PO13 and PO20) 
@@ -443,7 +443,7 @@ write.table(all.v2.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.v2.markers.filt.top100, 
-            file = "Clusters.c1082_1092delvsRest.markers.filt.top100.csv",
+            file = "Clusters.c1082_1092delvsRest.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 
 #' Find variant c.1082_1092del (patients PO6, PO13 and PO20) 
@@ -480,7 +480,7 @@ write.table(all.v2.f.markers.filt,
             sep =",", quote = F, row.names = F, col.names = T)
 
 write.table(all.v2.f.markers.filt.top100, 
-            file = "Clusters.c1082_1092delvsRest.fimbrial.markers.filt.top100.csv",
+            file = "Clusters.c1082_1092delvsRest.fimbrial.markers.filt.rank.top100.csv",
             sep =",", quote = F, row.names = F, col.names = T)
 }
 }

@@ -41,6 +41,10 @@ top <- pos.markers.filt %>%
   dplyr::group_by(cluster) %>%
   dplyr::slice_max(order_by = avg_log2FC, n = 100)
 
+write.table(top, 
+            file = "heatmap_pos_avgFC_top100.csv",
+            sep =",", quote = F, row.names = F, col.names = T)
+
 #' Heatmap on all clusters
 clust.col <- 
   c("#7FC97F","#BEAED4","#FDC086","#FFFF99","#F0027F","#BF5B17",
