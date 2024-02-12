@@ -1,0 +1,2852 @@
+---
+title: "Visium Seurat Analysis."
+author: "Minerva Li"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+output:
+  html_notebook:
+    df_print: paged
+code_folding: hide
+editor_options:
+  markdown:
+    wrap: 72
+bibliography: VisiumST.references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+#### Load library
+
+```{r load library and prepare directories, echo=TRUE}
+source("/home/minerva/VisiumST/gitHub/library.R")
+source("/home/minerva/VisiumST/gitHub/directory.R")
+```
+
+### Visium data analysis workflow:
+
+```{r Workflow, include=FALSE}
+DiagrammeR::grViz(" digraph nicegraph {
+                  
+                  # graph, node, and edge definitions
+                  
+                  graph [compound = true, nodesep = .5, ranksep = .25]
+                  
+                  node [fontname = arial, fontcolor = Grey5, width = 1, style = 'filled', shape = rectangle]
+                  
+                  edge [color = Grey10]
+                  
+                  subgraph cluster3 {
+                  edge [color = grey]
+                  1 [label = 'TissuePrep, Imaging & LibPrep', fixedsize = true, width = 3]
+                  2 [label = 'NovaSeq at CTG', fixedsize = true, width = 3]
+                  3 [label = 'Space Range + Loupe', shape=egg, fillcolor=SlateGray, fontcolor = WhiteSmoke]
+                  4 [label = 'Loupe', shape=oval, fillcolor=DodgerBlue, fontcolor = WhiteSmoke]
+                  5 [label = 'Image & Read Processing', fixedsize = true, width = 3]
+                  6 [label = 'Quantification', fixedsize = true, width = 3]
+                  7 [label = 'Graph-Based Clustering', fixedsize = true, width = 3]
+                  8 [label = 'Morphology Identification', fixedsize = true, width = 3]
+                  9 [label = 'Median Normalized Counts', fixedsize = true, width = 3, fillcolor=MintCream]
+                  10 [label = 'Merge Individual', fixedsize = true, width = 3, fillcolor=MintCream]
+                  11 [label = 'Filter Ribo & Mito?', fixedsize = true, width = 3, fillcolor=MintCream]
+                  12 [label = 'SRIQ Clustering', fixedsize = true, width = 3, fillcolor=MintCream]
+                  
+                  00 [label = 'Identify Common v.Feats', shape=underline, fontsize=18, fillcolor=White]
+
+                  
+                  A [label = 'Seurat in R', shape=oval, fillcolor=DarkTurquoise, fontcolor = WhiteSmoke]
+                  B [label = 'Extract QC Metric', fixedsize = true, width = 3]
+                  C [label = 'Subset Mito < 10%', fixedsize = true, width = 3]
+                  D [label = 'SC Tranformation', fixedsize = true, width = 3]
+                  E [label = 'Dimensionality Reduction (PCA)', fixedsize = true, width = 3]
+                  F [label = 'Graph-based Clustering', fixedsize = true, width = 3]
+                  G [label = 'Visualization by UMAP', fixedsize = true, width = 3]
+                  H [label = 'Indentify Variable Features', fixedsize = true, width = 3]
+                  I [label = 'Annotated by Loupe Clusters', fixedsize = true, width = 3, fillcolor=MintCream]
+                  J [label = 'Merge Counts and v.Feats', fixedsize = true, width = 3, fillcolor=MintCream]
+                  K [label = 'PCA -> Clustering -> UMAP', fixedsize = true, width = 3, fillcolor=MintCream]
+
+
+                  
+                  0 [label = '10X Visium Spatial GE Analysis'  width = 1.5, fillcolor=White, shape=underline]
+                  1->2->5->6->7->8->9->10->11->12->00
+                  3->5 [arrowhead = none]
+                  4->7 [arrowhead = none]
+                  6->B
+                  8->I
+                  B->C->D->E->F->G->H->I->J->K->00
+                  A->B [arrowhead = none]
+                  }
+                  }")
+```
+
+![](gitHub/Data/DataAnalysis_workflow_2.jpeg)
+
+### Analysis of 10X Visium Spatial data
+
+### 1. SpaceRanger and Loupe Browser
+
+*SpaceRanger* provide graph-based clustering and can be visualized in
+*Loupe Browser*. Manually annotated all the clusters based on their
+morphology and these annotations are exported and integrated to the
+Seurat analysis.
+
+![Screenshot of the Loupe Browser to show where to export the
+graph-based clustering annotations.](figure/Loupe.jpg)
+
+SpaceRanger also provide a pipeline called `spaceranger aggr` to allow
+user to aggregate multiple capture areas. The command takes a CSV file
+specifying a list of output files from individual samples and additional
+categories information for Loupe Browser to view or subset.
+
+| library_id |        molecule_h5        |      cloupe_file       |  spatial_folder  |  sample_info   | slide_info |   seq_info   |
+|:----------:|:-------------------------:|:----------------------:|:----------------:|:--------------:|:----------:|:------------:|
+|    PO20    | /path/to/molecule_info.h5 | /path/to/cloupe.cloupe | /path/to/spatial | BRCA_Fimbrial  | V10T06-110 | CTG_2021_075 |
+|   PO20_2   | /path/to/molecule_info.h5 | /path/to/cloupe.cloupe | /path/to/spatial | BRCA_Proximal  | V10T06-110 | CTG_2021_075 |
+|   PO20a    | /path/to/molecule_info.h5 | /path/to/cloupe.cloupe | /path/to/spatial | BRCA_Otherside | V10S21-050 | CTG_2021_099 |
+
+: Table 1. Aggregation CSV
+
+To run the `spaceranger aggr` is very simple and one parameter can be
+adjusted is either perform a sequencing depth normalization or not
+before merging, which is recommended by 10XGenomics to avoid batch
+effect introduced by sequencing depth. The normalization can be turned
+off to maximize sensitivity (keep the original amount of reads of each
+sample) and perform batch correction in the downstream analysis (for
+example with Harmony):
+
+``` bash
+cd /path/to/Data/Spaceranger 
+export PATH=/path/to/Spaceranger/spaceranger-1.3.1:$PATH
+
+## Perform sitecheck
+spaceranger sitecheck > sitecheck.txt
+
+## Perform aggregation of multiple capture areas with depth normalization. Alternative specifiy 'none' to skip depth normalization
+spaceranger aggr –id=AGG_PO20_mapped_20220708 –csv=agg_PO20_3.csv –normalize=mapped
+```
+
+The output is basically same as the output for a single capture area
+except for the feature-barcode matrix which contains tissue related
+barcode nucleotide sequence plus number id to distinguish same spots
+from different tissues/capture areas. For example, `AAACAACGAATAGTTC-1`
+and `AAACAACGAATAGTTC-2.` The numbering order reflects the sample order
+in the 'Aggregation CSV', so it is important to keep the order same as
+the output from Seurat analysis for later-on integration.
+
+Let's compare the graph-based clustering with sequencing depth
+normalization or without on 2 dimensional UMAP, as well as how
+individual sequencing library or cell types in relation to the clusters.
+First, The graph-based clustering gave 27 clusters (left) on the merged
+data with depth normalization and 30 clusters without (right).
+
+![Mapped Graph-based
+UMAP](figure/Loupe.mapped.Clusters.png){width="450"}![Graph-based
+clusters in UMAP](figure/Loupe.Clusters.png){width="450"}
+
+Let's annotate the clusters with morphology information provided by Anna
+and see how different cell types relate to different clusters. To do
+this, we will need to export the graph-based cluster info from
+individual sample and change their barcode number id correspondingly and
+row combine they, then import back by using "Import Categories...".
+
+Optional:
+
+```{r How to prepare morphology annotation file for Loupe browser}
+## reorder the csv files
+anno.list <- c("PO2.csv","PO2_2re.csv","PO6.csv", "PO7_A1.csv", "PO7_2.csv", "PO9_B1.csv", "PO13.csv","PO13a.csv","PO20.csv", "PO20a.csv", "PO20_2.csv","PO28.csv","PO35.csv","PO37.csv","PO40.csv","PO40_2.csv","PO41.csv","PO45.csv")
+
+## renumber the barcodes and merge all barcodes with morphology annotations
+Anno <- list()
+for (i in seq_along(anno.list)) {
+  sample.id <- gsub(".csv", "", anno.list[i])
+  anno <- read_csv(file = paste(anno.dir, anno.list[i], sep = "/"), col_names = T)
+  anno[["Barcode"]] <- gsub("1", i, anno[["Barcode"]])
+  anno[["Graph-based"]] <- gsub(paste0(sample.id, "_"), "", anno[["Graph-based"]])
+  Anno[[sample.id]] <- anno
+}
+morphology.clusters <- bind_rows(Anno)
+base::colnames(morphology.clusters)[2] <- "morphology"
+
+## write csv file for Loupe Browser
+write.table(morphology.clusters, file="morphology_clusters.csv", sep = ",", quote = F, row.names = F, col.names = T)
+```
+
+![Import the morphology clusters to the merged
+data.](figure/Loupe_import_category.png)
+
+How about the clusters in relation to the sequencing library or cell
+types based on morphology? Here we only look at the clusters from the
+merged data with depth normalization: clusters from the same sequencing
+library or morphology type were labelled with the same color. By looking
+at the colors, it is clear that some libraries stays further away from
+the center instead of overlapping each other, and for different sub
+groups with Fallopian tube epithelial cells (FTE) morphology are
+spreading around the Stroma cells groups.
+
+![Graph-based clusters labeled by Sample id in
+UMAP.](figure/Loupe.SampleID.png){alt="Mapped Graph-based lib UMAP"
+width="450"}![Graph-based clusters labeled by morphology in
+UMAP.](figure/Loupe.Morphology.png){alt="Mapped Graph-based cell UMAP"
+width="450"}
+
+We also have two samples (PO7 and PO9) from two different patients who
+carried BRCA1 and BRCA2 mutation respectively, which were analysed under
+the same capture area, show very good overlapping on UMAP plot and their
+FTE cells have clear separation from the stroma cells. While the PO7_2
+(proximal tissue from the same patient as PO7) stays close with some
+Stroma spots overlapping to PO7, but the FTEs spots stay very far away
+from their FTE as well.
+
+PO7 and PO9 capture areas were manually selected in the loupe browser
+and obtained individual jason files and re-run the SpaceRanger on fastQ
+analysis, and lastly generated two separated outputs instead of one.
+Those individual outputs rename as PO7_A1, PO9_A1, PO7_B1 and PO9_B1,
+and they were used for the aggregation together with other samples.
+
+```{r split Annas annotation for version 2 aggregated results}
+## export projection from loupe browser for those splited samples
+PO7_A1_Projection <- read_csv("~/VisiumST/Data/Spaceranger/PO7_A1-Projection.csv")
+PO7_B1_Projection <- read_csv("~/VisiumST/Data/Spaceranger/PO7_B1-Projection.csv")
+PO9_A1_Projection <- read_csv("~/VisiumST/Data/Spaceranger/PO9_A1-Projection.csv")
+PO9_B1_Projection <- read_csv("~/VisiumST/Data/Spaceranger/PO9_B1-Projection.csv")
+
+## import Annas annotation for the joined sections
+PO7PO9_anno <- read_csv("~/VisiumST/gitHub/Data/Annotation/Excluded/Splited_PO7PO9.csv")
+PO9PO7_anno <- read_csv("~/VisiumST/gitHub/Data/Annotation/Excluded/Splited_PO9PO7.csv")
+
+## split annotation
+PO7PO9_anno$Barcode <- gsub(".{2}$", "", PO7PO9_anno$Barcode)
+PO9PO7_anno$Barcode <- gsub(".{2}$", "", PO9PO7_anno$Barcode)
+PO7_A1_Projection$Barcode <- gsub(".{3}$", "", PO7_A1_Projection$Barcode)
+PO7_B1_Projection$Barcode <- gsub(".{3}$", "", PO7_B1_Projection$Barcode)
+PO9_A1_Projection$Barcode <- gsub(".{3}$", "", PO9_A1_Projection$Barcode)
+PO9_B1_Projection$Barcode <- gsub(".{3}$", "", PO9_B1_Projection$Barcode)
+
+PO7_A1_anno <- right_join(PO7PO9_anno, PO7_A1_Projection[1])
+PO7_B1_anno <- right_join(PO9PO7_anno, PO7_B1_Projection[1])
+PO9_A1_anno <- right_join(PO7PO9_anno, PO9_A1_Projection[1])
+PO9_B1_anno <- right_join(PO9PO7_anno, PO9_B1_Projection[1])
+
+PO7_A1_anno$Barcode <- paste0(PO7_A1_anno$Barcode, "-17")
+PO7_B1_anno$Barcode <- paste0(PO7_B1_anno$Barcode, "-18")
+PO9_A1_anno$Barcode <- paste0(PO9_A1_anno$Barcode, "-19")
+PO9_B1_anno$Barcode <- paste0(PO9_B1_anno$Barcode, "-20")
+
+PO7_A1_anno$`Graph-based` <- gsub("PO7PO9", "PO7_A1", PO7_A1_anno$`Graph-based`) %>% replace_na("PO7_A1_Unknown")
+PO7_B1_anno$`Graph-based` <- gsub("PO9PO7", "PO7_B1", PO7_B1_anno$`Graph-based`) %>% replace_na("PO7_B1_Unknown")
+PO9_A1_anno$`Graph-based` <- gsub("PO7PO9", "PO9_A1", PO9_A1_anno$`Graph-based`) %>% replace_na("PO9_A1_Unknown")
+PO9_B1_anno$`Graph-based` <- gsub("PO9PO7", "PO9_B1", PO9_B1_anno$`Graph-based`) %>% replace_na("PO9_B1_Unknown")
+
+write.table(PO7_A1_anno, file="~/VisiumST/gitHub/Data/Annotation/PO7_A1.csv", sep = ",", quote = F, row.names = F, col.names = T)
+write.table(PO7_B1_anno, file="~/VisiumST/gitHub/Data/Annotation/PO7_B1.csv", sep = ",", quote = F, row.names = F, col.names = T)
+write.table(PO9_A1_anno, file="~/VisiumST/gitHub/Data/Annotation/PO9_A1.csv", sep = ",", quote = F, row.names = F, col.names = T)
+write.table(PO9_B1_anno, file="~/VisiumST/gitHub/Data/Annotation/PO9_B1.csv", sep = ",", quote = F, row.names = F, col.names = T)
+```
+
+![PO7, PO9 and PO7_2 showed in UMAP
+plot.](figure/Loupe.MultiSec.png){alt="PO7PO9 with depth normalization"
+width="450"}![PO7, PO9 and PO7_2 showed in splited UMAP
+plot.](figure/Loupe.MultiSec.split.png){alt="PO7PO9 without depth normalization"
+width="450"}
+
+Based on the graph-based clustering results from Spaceranger and Loupe
+browser, we will need to run some batch correctionor sample integration
+to bring different sequencing libraries as well as the FTEs clusters
+into alignment. The workflow below is adapted to the [10XGenomics batch
+correction method on Visium
+data](https://www.10xgenomics.com/resources/analysis-guides/correcting-batch-effects-in-visium-data)
+vignette and using Seurat and
+[Harmony](https://www.nature.com/articles/s41592-019-0619-0) and other R
+packages. Moreover, we have compared different data normalization method
+and so here we are only showing the optimal method for our data.
+
+------------------------------------------------------------------------
+
+### 2. Visium Data Analysis with Seurat
+
+[Seurat](https://satijalab.org/seurat/) is a R package for single cell
+genomic analysis, and now also provide
+[pipelines](https://satijalab.org/seurat/articles/spatial_vignette.html)
+for analysis of spatial datasets. However, in order to run the Harmony
+dimensional reduction, the data will be processed in R and then import
+back to Loupe browser for spatial analysis.
+
+#### 2.1. Workflow details
+
+The newer version of Seurat introduces the
+[SCTransform](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1)
+workflow, which is an alternative to the NormalizeData,
+FindVariableFeatures, ScaleData workflow. This procedure skips heuristic
+steps such as pseudocount addition or log-transformation and improves
+downstream analysis such as variable gene selection, dimensional
+reduction and differential expression.
+
+We will perform a very similar analysis procedure as the [spatial
+vignette](https://satijalab.org/seurat/articles/spatial_vignette.html)
+from Seurat with spatial information integrated by `Read10X_Image()`
+then `Load10X_Spatial()`, and `SCTranform()` to prepare the count data,
+and last `FindSpatiallyVariableFeatures()` to obtain DEG.
+
+STutility is an R-package with the goal of providing an easy-to-use
+visualization and analysis tool kit for spatial transcriptomics data.
+The package was developed by Ludvig Larsson and Joseph Bergenstråhle in
+the Genomics research group at the Royal Institute of Technology (KTH).
+
+The group is positioned at the [Science for Life
+Laboratory](https://www.scilifelab.se/) (SciLifeLab) in Stockholm,
+Sweden. Please visit our website
+[spatialresearch.org](https://www.spatialresearch.org/) for more
+information about the group and our research.STutility is an R-package
+with the goal of providing an easy-to-use visualization and analysis
+tool kit for spatial transcriptomics data.
+
+#### 1. Imaging and QC
+
+```{r}
+library(fs)
+home <- path_home()
+source(paste(home, "OVisium/manuscript/gitHub/9_QC_spacial.R", sep = "/"))
+source(paste(home, "OVisium/manuscript/gitHub/10_QC_violin_box.R", sep = "/"))
+A <- plot_grid((P[[1]] + ggtitle("Number of Features or Genes")), p[[1]], ncol = 1, rel_heights = c(2,1))
+B <- plot_grid((P[[2]] + ggtitle("Number of UMI Counts")), p[[2]], ncol = 1, rel_heights = c(2,1))
+C <- plot_grid((P[[3]] + ggtitle("Mitochrondrial Gene Expression %")), p[[3]], ncol = 1, rel_heights = c(2,1))
+D <- plot_grid((P[[4]] + ggtitle("Ribosomal Gene Expression %")), p[[4]], ncol = 1, rel_heights = c(2,1))
+  plot1 <- ggarrange(A,NULL,B,NULL,C,NULL,D, ncol = 2, labels = c("A","","B","","C","","D"), font.label = list(size = 30), widths = c(1, 0.2, 1), heights = c(1, 0.2, 1))
+  plot2 <- ggarrange( ncol = 2, labels = c("C","D"), font.label = list(size = 30), widths = c(1, 2, 1))
+  
+setwd(qc.dir)
+png(file = "QC_spatial_vln.png", 
+    width = 8500, height = 11300, res = 300)
+ggarrange(A,NULL,B,NULL, NULL, NULL,C,NULL,D, ncol = 3, nrow = 3, labels = c("A","","B","","","","C","","D"), font.label = list(size = 30), widths = c(1, 0.05, 1), heights = c(1, 0.05, 1))
+dev.off()
+
+```
+
+![](gitHub/Data/STU/image_H&E.png)
+
+![](gitHub/Data/STU/image_nFeature_RNA.png)
+
+![](gitHub/Data/STU/image_nCount_RNA.png)
+
+By looking the spatial feature plots, FTE enriched area more
+transcripts/features and they have higher expression.
+
+![](gitHub/Data/STU/image_percent_mito.png)
+
+![](gitHub/Data/STU/image_percent_ribo.png)
+
+Most of the spots have good number of features and expression level.
+However, based on the statistic below one could filter away those spots
+which have ex.
+
+-   minGenesPerSpot : sets a threshold for the minimum allowed number of
+    unique genes in a spot (A). Removing spots which have low number of
+    RNA transcripts/features. ex. \>=100
+
+-   minUMICountsPerSpot : sets a threshold for the minimum allowed UMI
+    counts in a spot (B). Removing spots which have low RNA expression.
+    ex. \>=500
+
+-   minUMICountsPerGene: sets a threshold for the minimum allowed UMI
+    counts of a gene across the whole dataset (C). Removing genes low
+    expression. ex. \>=100
+
+-   minSpotsPerGene : sets a threshold for the minimum allowed number of
+    spots where a gene is detected cross the whole dataset (D). Removing
+    low abundant gene. ex. \>=5
+
+-   topN : subset the expression matrix to include only the topN most
+    expressed genes.
+
+![](gitHub/Data/STU/plot_QC_RNA_bar.png)
+
+There are some difference between tissue samples by looking at the
+violin plots below:
+
+![](gitHub/Data/STU/plot_QC_mito_ribo_vln.png)
+
+![](gitHub/Data/STU/plot_QC_RNA_vln.png)
+
+#### 2. Subset, SCTransform and filter variable features
+
+The data will be processed as before with SCTransform, dimensional
+reduction and graph-based clustering, and last 2-dimensional reduction
+ex. UMAP.
+
+#### 3. PCA dimensional reduction and Harmony integration (standard seurat way)
+
+Using the standard seurat analysis pipeline to process the data. The PCA
+is performed on the scale.data from the variable features. As the
+variable features are different from different samples, not all the
+features in the merged object are scaled and resulted PCA was run
+without 146 features.
+
+```{r choose pcs}
+source(paste(home, "OVisium/manuscript/gitHub/12_choose_pca_dims.R", sep = "/"))
+
+sct.file <- list.files(path = rds.dir, pattern = "merged.sct.combi.rds")
+
+for (rds in sct.file) {
+data <- readRDS(paste(rds.dir, rds, sep = "/"))
+file.name <- gsub(".rds", "", rds)
+data.type <- gsub("merged.sct.", "", file.name)
+set.seed(1220)
+choose.pcs(data=data)
+file.rename("pca_elbow.png", paste0("pca_elbow_", data.type, ".png"))
+file.rename("pca_quant_elbow.png", paste0("pca_quant_elbow_", data.type, ".png"))
+file.rename("pca_heatmap.png", paste0("pca_heatmap_", data.type, ".png"))
+}
+```
+
+Harmony intergration was performed after PCA. Different covarient
+
+![](gitHub/Data/STU/PCA/Remove_nothing/STU.sct.merged.pca.heatmap.png)
+
+![](gitHub/Data/STU/PCA/Remove_nothing/PCA.20.plot_batch_cor.png)
+
+![](gitHub/Data/STU/PCA/Remove_nothing/STU.sct.merged.quant.elbow.png)
+
+![Batch corrected by
+library](gitHub/Data/STU/PCA/Remove_nothing/STU.sct.merged.PCA.20.Harmony.by.lib.id.png)
+
+![Batch corrected by seq
+run](gitHub/Data/STU/PCA/Remove_nothing/STU.sct.merged.PCA.20.Harmony.by.seq.id.png)
+
+By comparing the harmony integration efficiency on the PCA dimension
+reducted data, harmony works when using sequencing run ids but with the
+technical consideration (library prep) we used the correction using
+individual libraries.
+
+![Clustering using PCA
+data](gitHub/Data/STU/PCA/Remove_nothing/STU.sct.merged.PCA.20.clustree.png)
+
+![Clustering using Harmony data by
+library](gitHub/Data/STU/PCA/Remove_nothing/STU.sct.merged.PCA.20.harmony.lib.clustree.png)
+
+By looking at the clustering tree, it started from 3 main clusters and
+spread into multiple subclusters. According to the morphology,
+resolution 0.5 gives a good separation between clusters and it gives 11
+clusters in total.
+
+Lets plot the uwot 2-dimentional reduction data with different
+annotation and clustering.
+
+![Clustering with res
+0.5](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_clustering.png)
+
+![Annotation with library
+ids](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_library.png)
+
+![Annotation with
+morphology](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_morphology.png)
+
+![Annotation with BRCA
+status](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_mutation.png)
+
+![Annotation with patient
+ids](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_patient.png)
+
+![Annotation with sequencing
+id](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_seq.png)
+
+![Annotation with slide
+ids](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_slide.png)
+
+![Annotation with tissue
+origin](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_dim_tissue_origin.png)
+
+![](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_image_spatial_clustering.png)
+
+![](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_image_spatialHE_clustering.png)
+
+![](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_image_spatial_cluster_PO13.png)
+
+![](gitHub/Data/STU/PCA/Dim_patient/PCA.20.Harmony.SNN.res.0.5/plot_image_spatial_cluster_PO7_2.png)
+
+All clusters are present in all samples and it is good indication of the
+clustering represent all samples in the cohort.
+
+Last, we can export the result in a format that can be imported into the
+Loupe Browser:
+
+#### 
+
+#### 4. DEA and functional annotation
+
+To run differential expression, we make use of 'corrected counts' that
+are stored in the `data` slot of the the `SCT` assay. Corrected counts
+are obtained by setting the sequencing depth for all the cells to a
+fixed value and reversing the learned regularized negative-binomial
+regression model. Prior to performing differential expression, we first
+run `PrepSCTFindMarkers`, which ensures that the fixed value is set
+properly. Then we use `FindMarkers(assay="SCT")` to find differentially
+expressed genes.
+
+The `PrepSCTFindMarkers()` function reverse the individual SCT
+regression model using minimum of median UMI (3614.5) as the sequencing
+depth covariate. The counts slot of the SCT assay is replaced with
+recorrected counts and the data slot is replaced with log1p of
+recorrected counts. The `FindAllMarker()` uses the 'data' slot, while
+the `FindSpatiallyVariableFeatures()` uses the 'scale.data' slot. More
+examples see here:
+<https://satijalab.org/seurat/articles/sctransform_v2_vignette.html>
+
+**If running on a subset of the original object after running
+[`PrepSCTFindMarkers()`](https://satijalab.org/seurat/reference/PrepSCTFindMarkers.html),
+[`FindMarkers()`](https://satijalab.org/seurat/reference/FindMarkers.html)
+should be invoked with `recorrect_umi = FALSE` to use the existing
+corrected counts:**
+
+###### 1. Find all markers in all clusters
+
+```{r only positive}
+## DEA with only positive/upregulated features
+Idents(data)<-"Visium_clusters"
+all.pos.markers <- FindAllMarkers(data, assay="SCT", only.pos = TRUE, min.pct = 0.01) %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+
+all.pos.markers.filt <- all.pos.markers %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01)
+
+all.pos.markers.filt.top100 <- all.pos.markers.filt %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::slice_max(order_by = avg_log2FC, n = 100)
+
+
+write.table(all.pos.markers.filt, 
+            file = paste(data.dir, "STU/DEA", paste("All.clusters.pos.markers.filt.csv", sep = "."), sep = "/"),
+            sep =",", quote = F, row.names = F, col.names = T)
+write.table(all.pos.markers.filt.top100, 
+            file = paste(data.dir, "STU/DEA", paste("All.clusters.pos.markers.filt.top100.csv", sep = "."), sep = "/"),
+            sep =",", quote = F, row.names = F, col.names = T)
+
+
+## fimbrial vs proximal
+Idents(data)<-"Visium_clusters"
+all.pos.markers <- FindAllMarkers(data, assay="SCT", only.pos = TRUE, min.pct = 0.01,) %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+
+all.pos.markers.filt <- all.pos.markers %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01)
+
+all.pos.markers.filt.top100 <- all.pos.markers.filt %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::slice_max(order_by = avg_log2FC, n = 100)
+
+
+write.table(all.pos.markers.filt, 
+            file = paste(data.dir, "STU/DEA", paste("All.clusters.pos.markers.filt.csv", sep = "."), sep = "/"),
+            sep =",", quote = F, row.names = F, col.names = T)
+write.table(all.pos.markers.filt.top100, 
+            file = paste(data.dir, "STU/DEA", paste("All.clusters.pos.markers.filt.top100.csv", sep = "."), sep = "/"),
+            sep =",", quote = F, row.names = F, col.names = T)
+```
+
+```{r heatmap}
+## reorder annotation
+Idents(data) <- "mutation"
+Idents(data) <- factor(Idents(data),
+                       levels = c("BRCA1", "BRCA2"))
+data[["mutation"]] <- Idents(data)
+
+Idents(data) <- "age"
+Idents(data) <- factor(Idents(data),
+                       levels = c("35+", "40+", "45+", "50+"))
+data[["age"]] <- Idents(data)
+
+## Create some new idents for annotation of heatmap
+Idents(data) <- "loupeA.ident"
+data[["morphology"]] <- gsub(pattern = "_\\d+$", "", data@active.ident)
+Idents(data) <- "morphology" 
+Idents(data) <- factor(Idents(data), 
+                       levels = c("FTE","Mix", "FTE Stroma","Stroma"))
+data[["morphology"]] <- Idents(data)
+
+Idents(data) <- "seurat_clusters"
+data[["Visium_clusters"]] <- gsub(pattern = "10", "Immune", data@active.ident) 
+data[["Visium_clusters"]] <- gsub(pattern = "0", "FTE_a", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "2", "FTE_b", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "3", "Mix_a", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "5", "Mix_b", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "1", "Stromal_a", data$Visium_clusters) 
+data[["Visium_clusters"]] <- gsub(pattern = "4", "Stromal_b", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "6", "Stromal_c", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "7", "Stromal_d", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "8", "Stromal_e", data$Visium_clusters) 
+data[["Visium_clusters"]] <- gsub(pattern = "9", "Stromal_f", data$Visium_clusters) 
+Idents(data) <- "Visium_clusters"
+Idents(data) <- factor(Idents(data), 
+                       levels = c("FTE_a","FTE_b", "Mix_a", "Mix_b", "Stromal_a", "Stromal_b", "Stromal_c","Stromal_d", "Stromal_e", "Stromal_f", "Immune"))
+data[["Visium_clusters"]] <- Idents(data)
+
+
+## scale all features for better heatmap
+sdata <- ScaleData(data, features = rownames(data))
+
+## Plot regular seurat heatmap¨
+morph.cols <- c("#8B7500", "#FFD700", "#FFBBFF", "#9400D3")
+sample.cols <- scCustomize_Palette(num_groups = 20, ggplot_default_colors = T)
+mut.cols <- c("#7D0552", "#057D31")
+age.cols <- c("#D7191C","#FDAE61","#ABDDA4","#2B83BA")
+
+png(paste(data.dir, "STU/DEA", paste("pos.100.deg.hm.png", sep = "."), sep = "/"), width = 4000, height = 4000) 
+  plot_heatmap(
+  data,
+  markers = all.pos.markers,
+  sort_var = c("Visium_clusters", 
+               "morphology"),
+  anno_var = c("Visium_clusters",
+               "morphology",
+               "mutation", 
+               "age",
+               "library_id"),
+  anno_colors = list("Paired",
+                     morph.cols, 
+                     mut.cols,
+                     age.cols,
+                     sample.cols),
+  hm_colors = c("purple","black","yellow"))
+dev.off()
+
+
+```
+
+###### 2. Find markers between fimbrial and proximal from the same patient
+
+To perform DEA, I first subset the patient samples and run
+FindAllMarkers to get DEG of each cluster
+
+```{r DEG between fimbrial and proximal of individual}
+## subset by sample_id which represent patient
+Idents(data) <- "sample_id"
+data.PO13<-subset(data, idents = c("PO13", "PO13a"))
+data.PO20<-subset(data, idents = c("PO20", "PO20a", "PO20_2"))
+data.PO2<-subset(data, idents = c("PO2", "PO2_2re"))
+
+
+DoHeatmap(data.PO13, features = PO13a.markers.filt)
+png(file = paste(data.dir, "/STU/DEA/", "plot_dot_PO13.png", sep = ""), width = 4000, height = 1200, res = 300)
+  print(
+    DotPlot(data.PO13, assay = "SCT", features =  PO13a.markers.filt$gene) + theme(axis.text.x=element_text(angle = -45, hjust = 0)) + xlab("") + ylab("")
+)
+  dev.off()
+
+features <- c(PO20.2.markers.filt$gene, PO20a.markers.filt$gene) %>% base::unique()
+png(file = paste(data.dir, "/STU/DEA/", "plot_dot_PO20.png", sep = ""), width = 5000, height = 1200, res = 200)
+  print(
+    DotPlot(data.PO20, assay = "SCT", features =  features) + theme(axis.text.x=element_text(angle = -45, hjust = 0)) + xlab("") + ylab("")
+)
+  dev.off()
+  
+png(file = paste(data.dir, "/STU/DEA/", "plot_dot_PO2.png", sep = ""), width = 4000, height = 1200, res = 200)
+  print(
+    DotPlot(data.PO2, assay = "SCT", features =  PO2.2.markers.filt$gene[c(1:29, 300:332)]) + theme(axis.text.x=element_text(angle = -45, hjust = 0)) + xlab("") + ylab("")
+)
+  dev.off()
+  
+data.PO7<-subset(data, idents = c("PO7_A1", "PO7_2"))
+PO7.2.markers.filt <- PO7.2.markers.filt %>% dplyr::filter(abs(pct.1-pct.2)>0.25)
+png(file = paste(data.dir, "/STU/DEA/", "plot_dot_PO7.png", sep = ""), width = 5000, height = 1200, res = 200)
+  print(
+    DotPlot(data.PO7, assay = "SCT", features =  PO7.2.markers.filt$gene[c(1:39, 363:422)]) + theme(axis.text.x=element_text(angle = -45, hjust = 0)) + xlab("") + ylab("")
+)
+  dev.off()
+  
+data.PO40<-subset(data, idents = c("PO40", "PO40_2"))
+PO40.2.markers.filt <- PO40.2.markers.filt %>% dplyr::filter(pct.diff>0.25)
+png(file = paste(data.dir, "/STU/DEA/", "plot_dot_PO40.png", sep = ""), width = 3000, height = 1200, res = 300)
+  print(
+    DotPlot(data.PO40, assay = "SCT", features =  PO40.2.markers.filt$gene) + theme(axis.text.x=element_text(angle = -45, hjust = 0)) + xlab("") + ylab("")
+)
+  dev.off()
+
+## DEA between different sides of the fimbrial from the same patient
+
+
+
+PO13a.markers <- FindMarkers(data, assay = "SCT", ident.1 = "PO13", ident.2 = "PO13a", group.by = "library_id", verbose = T, min.pct = 0.01, min.diff.pct = 0.25) %>% 
+  rownames_to_column("gene") %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+write.table(PO13a.markers, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO13a.markers.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO20a.markers <- FindMarkers(data, assay = "SCT", ident.1 = "PO20", ident.2 = "PO20a", group.by = "library_id", verbose = T, min.pct = 0.01, min.diff.pct = 0.25) %>% rownames_to_column("gene") %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+write.table(PO20a.markers, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO20a.markers.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## DEA between proximal and fimbriated ends from the same patient
+PO2.2.markers <- FindMarkers(data, assay = "SCT", ident.1 = "PO2", ident.2 = "PO2_2re", group.by = "library_id", verbose = T, min.pct = 0.01) %>% 
+  rownames_to_column("gene") %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+write.table(PO2.2.markers, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO2.2.markers.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO40.2.markers <- FindMarkers(data, assay = "SCT", ident.1 = "PO40", ident.2 = "PO40_2", group.by = "library_id", verbose = T, min.pct = 0.01) %>% 
+  rownames_to_column("gene") %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+write.table(PO40.2.markers, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO40.2.markers.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO20.2.markers <- FindMarkers(data, assay = "SCT", ident.1 = c("PO20", "PO20a"), ident.2 = "PO20_2", group.by = "library_id", verbose = T, min.pct = 0.01) %>% 
+  rownames_to_column("gene") %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+write.table(PO20.2.markers, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO20.2.markers.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO7.2.markers <- FindMarkers(data, assay = "SCT", ident.1 = c("PO7_A1"), ident.2 = "PO7_2", group.by = "library_id",  verbose = T, min.pct = 0.01) %>% 
+  rownames_to_column("gene") %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+write.table(PO7.2.markers, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO7.2.markers.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## filter away MT, Ribo, Pseudo and LINC RNA
+PO13a.markers.filt <- PO13a.markers  %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+  dplyr::arrange(desc(avg_log2FC))
+write.table(PO13a.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO13a.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO20a.markers.filt <- PO20a.markers  %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+  dplyr::arrange(desc(avg_log2FC))
+write.table(PO20a.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO20a.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO2.2.markers.filt <- PO2.2.markers  %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+  dplyr::arrange(desc(avg_log2FC))
+write.table(PO2.2.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO2.2.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO20.2.markers.filt <- PO20.2.markers  %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+  dplyr::arrange(desc(avg_log2FC))
+write.table(PO20.2.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO20.2.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO40.2.markers.filt <- PO40.2.markers  %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+  dplyr::arrange(desc(avg_log2FC))
+write.table(PO40.2.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO40.2.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+PO7.2.markers.filt <- PO7.2.markers  %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+  dplyr::arrange(desc(avg_log2FC))
+write.table(PO7.2.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "PO7.2.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+```
+
+```{r Venn diagram and find common markers in patients}
+studies = list(PO2.2.markers$gene,
+               PO7.2.markers$gene,
+               PO20.2.markers$gene,
+               PO40.2.markers$gene)
+ol = calculate.overlap(x = studies)
+ol_size=sapply(ol, length)
+
+myCol <- brewer.pal(4, "Pastel2")
+venn.diagram(
+  x = studies,
+  category.names = c("PO2", "PO7", "PO20", "PO40"),
+  filename = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "fimbrial.patient.common.venn.tiff", sep = "."), sep = "/"),
+  
+  # Circles
+  lwd = 2,
+  lty = 'blank',
+  fill = myCol,
+  # Numbers
+  cex = 1.2,
+  #fontface = "italic",
+  fontfamily = "sans",
+  # Set names
+  cat.cex = 1.2,
+  cat.fontface = "bold",
+  cat.default.pos = "outer",
+  #cat.pos = c(-50, 50, 180, -180),
+  #cat.dist = c(0.055, 0.055, 0.085, 0.085),
+  cat.fontfamily = "sans",
+  #rotation = 1
+)
+
+
+## combine and get common genes
+samples = list(PO2.2.markers[c(1,3)],
+               PO7.2.markers[c(1,3)],
+               PO20.2.markers[c(1,3)],
+               PO40.2.markers[c(1,3,7)])
+my_merge <- function(df1, df2){                                
+  merge(df1, df2, by = "gene")
+}
+fimbrial.patient.common <- Reduce(my_merge, samples) %>% dplyr::rename("PO2" = 2, "PO7" = 3, "PO20" = 4, "PO40" = 5)
+write.table(fimbrial.patient.common, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "fimbrial.patient.common.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## plot those 10 genes using violin 
+Idents(data)<-"origin"
+levels(data)
+ "Fimbrial"  "Proximal"  "Otherside"
+data[["Origin"]] <- gsub(pattern = "Otherside", "Fimbrial", data@active.ident)
+Idents(data)<-"Origin"
+levels(data)
+
+png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/", "plot_vln_Patient_Common.png", sep = ""), width = 8000, height = 3000, res = 400)
+  print(
+VlnPlot(data, features = fimbrial.patient.common$gene, group.by = "sample_id", split.by = "Origin", pt.size = 0.01, combine = T, ncol = 5, same.y.lims = F)  + theme(legend.position="bottom") & theme(axis.title.x = element_blank(), axis.text.x = element_text(size=8)) 
+)
+  dev.off() 
+
+
+```
+
+![Common DEA genes from 4 patients who have paired fimbriated and
+ampulla](gitHub/Data/STU/DEA/Comparison_Patient/STU.sct.merged.fimbrial.patient.common.venn.png)
+
+![10 common genes
+expression](gitHub/Data/STU/DEA/Comparison_Patient/plot_vln_Patient_Common.png)
+
+Comparison between fimbrial and proximal spots of the whole dataset
+
+```{r fimbrial vs proximal in the whole dataset}
+## comparison of all fimbrial and proximal spots
+fimbrial.markers <- FindMarkers(data, assay = "SCT", ident.1 = c("Fimbrial", "Otherside"), ident.2 = "Proximal", group.by="origin", verbose = T, min.pct = 0.01) %>% rownames_to_column("gene") %>%
+  left_join(y = unique(annotations[, c("gene_name", "description")]), by = c("gene" = "gene_name"))
+write.table(fimbrial.markers, file = paste(data.dir, "STU/DEA/Fimbrial_Proximal", paste(file.name, "fimbrial.markers.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)  
+
+fimbrial.markers.filt <- fimbrial.markers  %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+  dplyr::arrange(desc(avg_log2FC))
+
+fimbrial.markers.top10 <- fimbrial.markers.filt[c(1,3),] %>%
+  dplyr::slice_max(order_by = avg_log2FC, n = 10)
+write.table(fimbrial.markers.filt, file = paste(data.dir, "STU/DEA/Fimbrial_Proximal", paste(file.name, "fimbrial.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+write.table(fimbrial.markers.top10, file = paste(data.dir, "STU/DEA/Fimbrial_Proximal", paste(file.name, "fimbrial.markers.top10.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+
+## Take all cells in different cluster, and find markers that separate cells in the 'Fimbrial' group (metadata variable 'group')
+get_marker <- function(cluster){
+  FindMarkers(data, assay = "SCT", ident.1 = "Fimbrial", ident.2= "Proximal", group.by = "Origin", subset.ident = cluster, recorrect_umi=F, min.pct = 0.01) %>%
+    rownames_to_column(var = "gene") %>%
+    left_join(y = unique(annotations[, c("gene_name", "description")]),
+               by = c("gene" = "gene_name")) %>%
+    cbind(cluster = cluster, .)
+}
+
+Idents(data) <- "Visium_clusters"
+all.fimbrial.markers <- map_dfr(c("FTE_a","FTE_b", "Mix_a", "Mix_b", "Stromal_a", "Stromal_b", "Stromal_c","Stromal_d", "Stromal_e", "Stromal_f", "Immune"), get_marker)
+
+all.fimbrial.markers.filt <- all.fimbrial.markers  %>% 
+   dplyr::group_by(cluster) %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) 
+
+## sort and rank top10
+all.fimbrial.markers.top10 <- all.fimbrial.markers.filt %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::slice_max(order_by = avg_log2FC, n = 10)
+
+write.table(all.fimbrial.markers.filt, 
+            file = paste(data.dir, "STU/DEA/Fimbrial_Proximal", paste("all.fimbrial.markers.filt.csv", sep = "."), sep = "/"),
+            sep =",", quote = F, row.names = F, col.names = T)
+write.table(all.fimbrial.markers.top10, 
+            file = paste(data.dir, "STU/DEA/Fimbrial_Proximal", paste("all.fimbrial.markers.filt.top10.csv", sep = "."), sep = "/"),
+            sep =",", quote = F, row.names = F, col.names = T)
+
+## find different between cluster
+  fimbrial.markers.FTE.a.uni <- anti_join(fimbrial.markers.FTE.a, fimbrial.markers.FTE.c, by="gene")
+    fimbrial.markers.FTE.a.uni <- anti_join(fimbrial.markers.FTE.a.uni, fimbrial.markers.FTE.b, by="gene")
+  fimbrial.markers.FTE.b.uni <- anti_join(fimbrial.markers.FTE.b, fimbrial.markers.FTE.c, by="gene")
+FTE.chosen <-c("OVGP1" ,  "TFF3" ,   "AGR2" ,   "GSTA1" ,  "AK1"  ,   "DYNLL1" , "ECRG4",   "CRIP1"  , "SNTN"   , "DYNLRB2", "CDHR3",   "CCL2",    "CLDN1"  , "CDKN1A" , "NEAT1",   "CMTM6"  , "SOX2"  ,  "TSPAN1" , "CD24"  ,  "TGM2"  ,  "CD74" ,   "GPX3" ,   "CFB" )
+FTE.chosen <-FTE.chosen[order(FTE.chosen)]
+
+Stromal.chosen<- c("JUNB" , "NR4A1" ,"DUSP1" ,"FOSB" , "CCN1" , "ECEL1", "APOD" , "FN1"  , "LYZ" ,  "AQP1"  ,"CCL19", "ACTG2")
+Stromal.chosen <-Stromal.chosen[order(Stromal.chosen)]
+
+
+```
+
+comparison within patients
+
+```{r comparison within patient on FTEs clusters and fimbrial vs proximal}
+Idents(data) <- harmony.ident
+data[["Visium_clusters"]] <- gsub(pattern = "0", "FTE_a", data@active.ident)
+data[["Visium_clusters"]] <- gsub(pattern = "2", "FTE_b", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "3", "Mix_a", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "5", "Mix_b", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "1", "Stromal_a", data$Visium_clusters) 
+data[["Visium_clusters"]] <- gsub(pattern = "4", "Stromal_b", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "6", "Stromal_c", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "7", "Stromal_d", data$Visium_clusters)
+data[["Visium_clusters"]] <- gsub(pattern = "8", "Stromal_e", data$Visium_clusters) 
+data[["Visium_clusters"]] <- gsub(pattern = "9", "Stromal_f", data$Visium_clusters) 
+
+
+
+## patient PO2
+get_patient_marker <- function(cluster){
+  FindMarkers(data, assay = "SCT", ident.1 = "PO2", ident.2= "PO2_2re", group.by = "library_id", subset.ident = cluster, recorrect_umi=F, min.pct = 0.01) %>%
+    rownames_to_column(var = "gene") %>%
+    left_join(y = unique(annotations[, c("gene_name", "description")]),
+               by = c("gene" = "gene_name")) %>%
+    cbind(cluster = cluster, .)
+}
+
+Idents(data) <- "PCA_clusters_2"
+PO2.all.fimbrial.markers <- map_dfr(c("PCA_FTEs", "PCA_Mixed", "PCA_Stromals"), get_patient_marker)
+
+PO2.all.fimbrial.markers.filt <- PO2.all.fimbrial.markers  %>% 
+   dplyr::group_by(cluster) %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+   dplyr::arrange(desc(avg_log2FC))
+write.table(PO2.all.fimbrial.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, cluster.ident, "PO2.all.fimbrial.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## patient PO7
+get_patient_marker <- function(cluster){
+  FindMarkers(data, assay = "SCT", ident.1 = c("PO7_A1", "PO7_B1"), ident.2= "PO7_2", group.by = "library_id", subset.ident = cluster, recorrect_umi=F, min.pct = 0.01) %>%
+    rownames_to_column(var = "gene") %>%
+    left_join(y = unique(annotations[, c("gene_name", "description")]),
+               by = c("gene" = "gene_name")) %>%
+    cbind(cluster = cluster, .)
+}
+
+PO7.all.fimbrial.markers <- map_dfr(c("PCA_FTEs", "PCA_Mixed", "PCA_Stromals"), get_patient_marker)
+
+PO7.all.fimbrial.markers.filt <- PO7.all.fimbrial.markers  %>% 
+   dplyr::group_by(cluster) %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+   dplyr::arrange(desc(avg_log2FC))
+write.table(PO7.all.fimbrial.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, cluster.ident, "PO7.all.fimbrial.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## patient PO20
+get_patient_marker <- function(cluster){
+  FindMarkers(data, assay = "SCT", ident.1 = c("PO20", "PO20a"), ident.2= "PO20_2", group.by = "library_id", subset.ident = cluster, recorrect_umi=F, min.pct = 0.01) %>%
+    rownames_to_column(var = "gene") %>%
+    left_join(y = unique(annotations[, c("gene_name", "description")]),
+               by = c("gene" = "gene_name")) %>%
+    cbind(cluster = cluster, .)
+}
+
+PO20.all.fimbrial.markers <- map_dfr(c("PCA_FTEs", "PCA_Mixed", "PCA_Stromals"), get_patient_marker)
+
+PO20.all.fimbrial.markers.filt <- PO20.all.fimbrial.markers  %>% 
+   dplyr::group_by(cluster) %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+   dplyr::arrange(desc(avg_log2FC))
+write.table(PO20.all.fimbrial.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, cluster.ident, "PO20.all.fimbrial.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## patient PO40
+get_patient_marker <- function(cluster){
+  FindMarkers(data, assay = "SCT", ident.1 = "PO40", ident.2= "PO40_2", group.by = "library_id", subset.ident = cluster, recorrect_umi=F, min.pct = 0.01) %>%
+    rownames_to_column(var = "gene") %>%
+    left_join(y = unique(annotations[, c("gene_name", "description")]),
+               by = c("gene" = "gene_name")) %>%
+    cbind(cluster = cluster, .)
+}
+
+PO40.all.fimbrial.markers <- map_dfr(c("PCA_FTEs", "PCA_Mixed", "PCA_Stromals"), get_patient_marker)
+
+PO40.all.fimbrial.markers.filt <- PO40.all.fimbrial.markers  %>% 
+   dplyr::group_by(cluster) %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene),
+                p_val_adj < 0.01) %>%
+   dplyr::arrange(desc(avg_log2FC))
+write.table(PO40.all.fimbrial.markers.filt, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, cluster.ident, "PO40.all.fimbrial.markers.filt.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+
+## check common genes again among patients
+## within FTE clusters
+studies = list(PO2.all.fimbrial.markers.filt[which(PO2.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),]$gene,
+               PO7.all.fimbrial.markers.filt[which(PO7.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),]$gene,
+               PO20.all.fimbrial.markers.filt[which(PO20.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),]$gene,
+               PO40.all.fimbrial.markers.filt[which(PO40.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),]$gene)
+ol = calculate.overlap(x = studies)
+ol_size=sapply(ol, length)
+
+myCol <- brewer.pal(4, "Pastel2")
+venn.diagram(
+  x = studies,
+  category.names = c("PO2" , "PO7", "PO20", "PO40"),
+  filename = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "fimbrial.patient.FTEs.common.venn.tiff", sep = "."), sep = "/"),
+  
+  # Circles
+  lwd = 2,
+  lty = 'blank',
+  fill = myCol,
+  # Numbers
+  cex = 1.2,
+  #fontface = "italic",
+  fontfamily = "sans",
+  # Set names
+  cat.cex = 1.2,
+  cat.fontface = "bold",
+  cat.default.pos = "outer",
+  #cat.pos = c(-50, 50, 180, -180),
+  #cat.dist = c(0.055, 0.055, 0.085, 0.085),
+  cat.fontfamily = "sans",
+  #rotation = 1
+)
+
+## within Stromal clusters
+studies = list(PO2.all.fimbrial.markers.filt[which(PO2.all.fimbrial.markers.filt$cluster=="PCA_Stromals"),]$gene,
+               PO7.all.fimbrial.markers.filt[which(PO7.all.fimbrial.markers.filt$cluster=="PCA_Stromals"),]$gene,
+               PO20.all.fimbrial.markers.filt[which(PO20.all.fimbrial.markers.filt$cluster=="PCA_Stromals"),]$gene,
+               PO40.all.fimbrial.markers.filt[which(PO40.all.fimbrial.markers.filt$cluster=="PCA_Stromals"),]$gene)
+ol = calculate.overlap(x = studies)
+ol_size=sapply(ol, length)
+
+myCol <- brewer.pal(4, "Pastel2")
+venn.diagram(
+  x = studies,
+  category.names = c("PO2" , "PO7", "PO20", "PO40"),
+  filename = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "fimbrial.patient.Stromals.common.venn.tiff", sep = "."), sep = "/"),
+  
+  # Circles
+  lwd = 2,
+  lty = 'blank',
+  fill = myCol,
+  # Numbers
+  cex = 1.2,
+  #fontface = "italic",
+  fontfamily = "sans",
+  # Set names
+  cat.cex = 1.2,
+  cat.fontface = "bold",
+  cat.default.pos = "outer",
+  #cat.pos = c(-50, 50, 180, -180),
+  #cat.dist = c(0.055, 0.055, 0.085, 0.085),
+  cat.fontfamily = "sans",
+  #rotation = 1
+)
+
+## combine and get common genes
+## FTE clusters
+samples = list(PO2.all.fimbrial.markers.filt[which(PO2.all.fimbrial.markers.filt$cluster=="PCA_FTEs"), c(1,2,4)],
+               PO7.all.fimbrial.markers.filt[which(PO7.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),c(2,4)],
+               PO20.all.fimbrial.markers.filt[which(PO20.all.fimbrial.markers.filt$cluster=="PCA_FTEs"), c(2,4,8)])
+my_merge <- function(df1, df2){                                
+  merge(df1, df2, by = "gene")
+}
+fimbrial.patient.FTE.common <- Reduce(my_merge, samples) %>% dplyr::rename("PO2" = 3, "PO7" = 4, "PO20" = 5)
+write.table(fimbrial.patient.FTE.common, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "fimbrial.patient.FTE.common.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## Stromal clusters
+samples = list(PO2.all.fimbrial.markers.filt[which(PO2.all.fimbrial.markers.filt$cluster=="PCA_Stromals"), c(1,2,4)],
+               PO7.all.fimbrial.markers.filt[which(PO7.all.fimbrial.markers.filt$cluster=="PCA_Stromals"),c(2,4)],
+               PO20.all.fimbrial.markers.filt[which(PO20.all.fimbrial.markers.filt$cluster=="PCA_Stromals"), c(2,4)],
+               PO40.all.fimbrial.markers.filt[which(PO40.all.fimbrial.markers.filt$cluster=="PCA_Stromals"), c(2,4,8)])
+my_merge <- function(df1, df2){                                
+  merge(df1, df2, by = "gene")
+}
+fimbrial.patient.Stromal.common <- Reduce(my_merge, samples) %>% dplyr::rename("PO2" = 3, "PO7" = 4, "PO20" = 5, "PO40" = 6)
+write.table(fimbrial.patient.FTE.common, file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, "fimbrial.patient.Stromal.common.csv", sep = "."), sep = "/"), sep =",", quote = F, row.names = F, col.names = T)
+
+## plot spatial of the unique top 50 markers for each patients
+## scale all features for plotting
+set.seed(1220)
+data <- ScaleData(data, features = rownames(data), assay = "SCT")
+
+DEG.PO2 <- PO2.all.fimbrial.markers.filt[which(PO2.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),] %>%
+   dplyr::arrange(desc(avg_log2FC))
+DEG.PO2<-DEG.PO2$gene[1:50]
+for (ftr in DEG.PO2) {
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO2/", "image_H&E_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO2/", "image_scale_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+
+DEG.PO7 <- PO7.all.fimbrial.markers.filt[which(PO7.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),] %>%
+   dplyr::arrange(desc(avg_log2FC))
+DEG.PO7<-DEG.PO7$gene[1:50]
+DEG.PO7 <-setdiff(DEG.PO7, DEG.PO2)
+for (ftr in DEG.PO7) {
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO7/", "image_H&E_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO7/", "image_scale_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+
+DEG.PO20 <- PO20.all.fimbrial.markers.filt[which(PO20.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),] %>%
+   dplyr::arrange(desc(avg_log2FC))
+DEG.PO20<-DEG.PO20$gene[1:50]
+DEG.PO20 <-setdiff(DEG.PO20, c(DEG.PO2, DEG.PO7))
+for (ftr in DEG.PO20) {
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO20/", "image_H&E_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO20/", "image_scale_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+
+DEG.PO40 <- PO40.all.fimbrial.markers.filt[which(PO40.all.fimbrial.markers.filt$cluster=="PCA_FTEs"),] %>%
+   dplyr::arrange(desc(avg_log2FC))
+DEG.PO40<-DEG.PO40$gene[1:30]
+DEG.PO40 <-setdiff(DEG.PO40, c(DEG.PO2, DEG.PO7, DEG.PO20))
+for (ftr in DEG.PO40) {
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO40/", "image_H&E_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO40/", "image_scale_fimbrial_FTEs_DEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+```
+
+```{r patient individual genes}
+PO2.fimbrial.markers.FTE.chosen<-c("XBP1", "ERP27", "DYNLL1", "CDHR3", "CCL2", "AGR2", "WFDC2")
+PO2.fimbrial.markers.FTE.chosen <-PO2.fimbrial.markers.FTE.chosen[order(PO2.fimbrial.markers.FTE.chosen)]
+
+PO7.fimbrial.markers.FTE.chosen<-c("GSTA1", "CETN2", "AK1", "TFF3", "TXN", "OVGP1", "ZMYND10", "TUBB4B", "SNTN", "TMEM59", "PRDX5", "SCGB2A1", "TPPP3")
+PO7.fimbrial.markers.FTE.chosen <-PO7.fimbrial.markers.FTE.Chosen[order(PO7.fimbrial.markers.FTE.Chosen)]
+
+PO20.fimbrial.markers.FTE.chosen<-c("NPC2", "LYPD1", "IFI44L", "IRF9", "CRISP3", "CILP", "MMP7") #IMMNUEMARKERS
+PO20.fimbrial.markers.FTE.chosen <-PO20.fimbrial.markers.FTE.Chosen[order(PO20.fimbrial.markers.FTE.Chosen)]
+
+PO40.fimbrial.markers.FTE.chosen<-c("TGM2", "SNHG8", "CD24", "DCN", "MYL9", "CFD", "ADIRF", "PTGDS", "TNXB") #STROMAL
+PO40.fimbrial.markers.FTE.chosen <-PO40.fimbrial.markers.FTE.Chosen[order(PO40.fimbrial.markers.FTE.Chosen)]
+
+png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO2/", "image_fimbrial_FTEs_DEG_chosen.png", sep = ""), width = 8500, height = 4500, res = 400) 
+   print(
+     ST.FeaturePlot(data,
+                    features = PO2.fimbrial.markers.FTE.chosen, 
+                    indices = 1:2,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    grid.ncol = 3,
+                    ncol = 2,
+                    show.sb = F,
+                    label.by = "library_id") 
+ )
+  dev.off()
+ 
+png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO7/", "image_fimbrial_FTEs_DEG_chosen.png", sep = ""), width = 12000, height = 7000, res = 400) 
+   print(
+     ST.FeaturePlot(data,
+                    features = PO7.fimbrial.markers.FTE.chosen, 
+                    indices = 4:6,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    grid.ncol = 3,
+                    ncol = 3,
+                    show.sb = F,
+                    label.by = "library_id")
+       
+ )
+  dev.off()  
+  
+  
+  
+png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO20/", "image_fimbrial_FTEs_DEG_chosen.png", sep = ""), width = 12000, height = 4200, res = 400) 
+   print(
+     ST.FeaturePlot(data,
+                    features = PO20.fimbrial.markers.FTE.chosen, 
+                    indices = 11:13,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    grid.ncol = 3,
+                    ncol = 3,
+                    show.sb = F,
+                    label.by = "library_id")
+       
+ )
+  dev.off()  
+  
+png(file = paste(data.dir, "/STU/DEA/Comparison_Patient/PO40/", "image_fimbrial_FTEs_DEG_chosen.png", sep = ""), width = 8500, height = 4500, res = 400) 
+   print(
+     ST.FeaturePlot(data,
+                    features = PO40.fimbrial.markers.FTE.chosen, 
+                    indices = 17:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    grid.ncol = 3,
+                    ncol = 2,
+                    show.sb = F,
+                    label.by = "library_id")
+       
+ )
+  dev.off()   
+```
+
+Visualize gene expression
+
+```{r violin plot to visualize DE}
+result <-STU_sct_v2_merged_fimbrial_patient_FTE_common_chosen$gene
+  result.name <- "fimbrial.patient.FTE.common.chosen"
+## plot top markers in violin plots
+png(file = paste(data.dir, "/STU/DEA/", "plot_vln_", result.name, ".png", sep = ""), width = 5000, height = 4000, res = 300)
+  print(
+VlnPlot(data, features = result, group.by = "origin", pt.size = 0, combine = T, ncol = 5) + theme(legend.position="bottom")
+)
+  dev.off()
+  
+png(file = paste(data.dir, "/STU/DEA/", "plot_vln_", result.name, ".png", sep = ""), width = 7000, height = 4000, res = 400)
+  print(
+VlnPlot(data, features = result, group.by = "PCA_clusters", split.by = "origin", pt.size = 0.01, combine = T, ncol = 6, same.y.lims = F)  + theme(legend.position="bottom") & theme(axis.title.x = element_blank(), axis.text.x = element_text(size=8)) 
+)
+  dev.off() 
+
+  png(file = paste(data.dir, "/STU/DEA/", "plot_vln_fimbrial_top10.png", sep = ""), width = 5000, height = 3000, res = 300)
+  print(
+VlnPlot(data, features = subset_markers.top10$gene, split.by = "origin", group.by = cluster.ident, pt.size = 0, combine = T) + theme(legend.position="bottom")
+)
+  dev.off()  
+```
+
+```{r spatial featureplot}
+result<- c(FTE.a.chosen$gene, FTE.b.chosen$gene, FTE.c.chosen$gene)
+for (ftr in result) {
+  png(file = paste(data.dir, "/STU/DEA/Fimbrial_Proximal/", "image_PCA_FTEs_interest_H&E_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/Fimbrial_Proximal/", "image_PCA_FTEs_interest_scale_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/Fimbrial_Proximal/", "image_PCA_FTEs_interest_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "data", 
+                    center.zero = F,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+
+Idents(data) <- harmony.ident
+uwot.reduction <- paste("PCA", npcs, "harmony", "uwot", sep = ".")
+data@reductions$uwot <- data@misc$reductions.backup[[uwot.reduction]]  
+
+
+png(file = paste(data.dir, "/STU/DEA/Fimbrial_Proximal/", "plot_PCA_", result.name, ".png", sep = ""), width = 8500, height = 6000, res = 500) 
+   print (
+     FeaturePlot(data, features = result, label = F, reduction = "uwot", order = F, ncol = 5) &
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank(), axis.text.x = element_blank()) 
+ )
+  dev.off()
+```
+
+###### 3. Functional annotation
+
+Let's annotate each cluster:
+
+Some of the code below are adapted from the original Seurat,
+clusterProfiler
+[book](https://yulab-smu.top/biomedical-knowledge-mining-book/index.html)
+and the DEG [workshop](https://github.com/hbctraining/DGE_workshop)
+provided by Harvard Chan Bioinformatics Core.
+
+Next, Let's use gene over-representation analysis (Enrich) as well as
+gene set enrichment analysis (GSEA) to map the function annotation of
+those differential expressed genes found in between the clusters as well
+as morphology groups. The functional annotation is obtained from
+database such as [Geneontology](http://geneontology.org/) (GO), [Kyoto
+Encyclopedia of Genes and Genomes](https://www.genome.jp/kegg/) (KEGG),
+[Molecular Signatures Database](http://www.gsea-msigdb.org/gsea/msigdb)
+(MSigDB) or validated cell markers.
+
+**GO** contains three categories: cellular component (CC), biological
+process (BP) and molecular function (MF). **KEGG** contains 4 main
+categories: systems information, health information, genomic information
+(such as KO) and chemical information. **MSigDB** contains 8 major
+collections and can be downloaded from [Broad
+Institute](https://www.gsea-msigdb.org/gsea/msigdb) or the R package
+*msigdbr*:
+
+-   H: hallmark gene sets
+
+-   C1: positional gene sets
+
+-   C2: curated gene sets
+
+-   C3: motif gene sets
+
+-   C4: computational gene sets
+
+-   C5: GO gene sets
+
+-   C6: oncogenic signatures
+
+-   C7: immunologic signatures
+
+For general cell markers, I used the data sets provided by the
+[**CellMarker 2.0**](http://yikedaxue.slwshop.cn/) [@Zhang2019] which
+are manually curated from over 10 000 publications as well as scRNAseq
+data. For the secretory or cliated FTEs markers as well as secretory
+subtypes markers, I used the data set from the scRNAseq data of normal
+fallopian tube from cancer patients [@Hu2020].
+
+Let's prepare the data first: In order to run the GSEA in the
+*clusterProfiler*, we need to convert the gene name to NCBI Entrez gene
+id first. As the gene name/symbol from the 10X data can be different to
+the ones in the database due to multiple name or new name), we will use
+the ensembl id in our data to make it easier but they don't always link
+to each other well either. There are tools to convert multiple features
+at once however none of them can convert all at once. Many of those
+features failed to convert are pseudogene or none coding RNA or due to
+outdated database (usually for uncharacterized or noval genes). By
+combining different tools and database, we were able to convert 25312 of
+36601 features from aggregated 10X Visium data:
+
+```{r prepare gene list}
+#universe <- all.markers %>% group_by(cluster) 
+universe <- all.pos.markers
+                        
+## Functional annotation using enrichGO and GSEA. Entrez ID prepared ahead and 
+## ready to load:
+setwd(deg.dir)
+load("features.covert.entrez.RData")
+
+## Convert gene name to entrezid
+     universe.ens <- inner_join(universe, features.id, by = c("gene" = "SYMBOL"))
+     universe.ent <- inner_join(universe.ens, features.ent.all[c(1,3)])
+     ## 10 features are missing and all of them are novel transcripts or lncRNA
+     universe.missed <- anti_join(universe.ens, features.ent.all[c(1,3)])
+     ## total 2312 unique features
+     universe.ent.all <- universe.ent
+     
+## prepare common features:
+     #common <- all.markers.filt 
+     common <- all.pos.markers.filt
+     
+     ## total 594 common features
+     #common.ent.all <- unique(inner_join(universe.ent.all, common[7]))
+     #common.missed <- unique(anti_join(universe.ent.all, common[7]))
+     common.ent.all <- unique(inner_join(universe.ent.all, common[2]))
+     common.missed <- unique(anti_join(universe.ent.all, common[2]))
+     common.ent.all$level <- "Upregulated"
+     common.ent.all$level[common.ent.all$avg_log2FC < 0] <- "Downregulated"
+     #common.ent.all$level <- "Fimbrial"
+     #common.ent.all$level[common.ent.all$avg_log2FC < 0] <- "Proximal"
+     ## reorder based on morphology annotation
+     o.groups <- c("upregulated", "downregulated")
+     groups <- c("FTE_a","FTE_b", "Mix_a", "Mix_b", "Stromal_a", "Stromal_b", "Stromal_c","Stromal_d", "Stromal_e", "Stromal_f", "Immune")
+     #o.groups <- c("Fimbrial", "Proximal")
+
+```
+
+```{r prepare gene list of fimbrial}
+universe <- subset_markers 
+common <- subset_markers.filt                         
+## Functional annotation using enrichGO and GSEA. Entrez ID prepared ahead and 
+## ready to load:
+setwd(deg.dir)
+load("features.covert.entrez.RData")
+
+## Convert gene name to entrezid
+     universe.ens <- inner_join(universe, features.id, by = c("gene" = "SYMBOL"))
+     universe.ent <- inner_join(universe.ens, features.ent.all[c(1,3)])
+     ## 10 features are missing and all of them are novel transcripts or lncRNA
+     universe.missed <- anti_join(universe.ens, features.ent.all[c(1,3)])
+     ## total 2312 unique features
+     universe.ent.all <- universe.ent
+     
+## prepare common features:
+     
+     ## total 594 common features
+     common.ent.all <- unique(inner_join(universe.ent.all, common[2]))
+     common.missed <- unique(anti_join(universe.ent.all, common[2]))
+     common.ent.all$level <- "Proximal"
+     common.ent.all$level[common.ent.all$avg_log2FC > 0] <- "Fimbrial"
+     o.groups <- c("Fimbrial", "Proximal") ## reorder based on morphology annotation
+     groups <- c("0", "2", "6", "3", "1", "4", "5") #PCA
+     #groups <- c("0", "5", "6", "1", "2", "3", "4") #NMF
+     
+
+```
+
+Over-representation Analysis:
+
+Data preparation: create background data (universe) for hypergeometric
+testing using all genes from both the DEG and spatial variable analysis;
+Prepare a common gene list (common) of the DEG and spatial variable
+features.
+
+In this data set, the universe contains 1424 unique features and the
+common contains which contains 1330 unique features which have adjusted
+p-value below 0.01. Only 10 features couldn't obtain their Entrez ids
+and they are all lncRNA or novel transcripts (start with AL).
+
+Let's perform the over-representation analysis using human cell markers
+and single cell markers to functional annotate individual cluster:
+
+```{r enrich cell and sCell analysis}
+## Download cell markers:
+## http://yikedaxue.slwshop.cn/download.php
+Cell_marker_Human <- read_excel(paste(deg.dir, "Cell_marker_Human.xlsx", sep = "/"))
+Cell_marker_Seq <- read_excel(paste(deg.dir, "Cell_marker_Seq.xlsx", sep = "/"))
+
+## Human cell markers
+cells <- Cell_marker_Human %>%
+    dplyr::select('Cell name', GeneID) %>%
+    dplyr::mutate(GeneID = strsplit(GeneID, ', ')) %>%
+    tidyr::unnest(cols = c(GeneID))
+
+## Single cell markers
+scells <- Cell_marker_Seq %>%
+    dplyr::filter(Species == "Human") %>%
+    dplyr::select('Cell name', GeneID) %>%
+    dplyr::mutate(GeneID = strsplit(GeneID, ', ')) %>%
+    tidyr::unnest(cols = c(GeneID))
+
+## gene over representation 
+set.seed(1220)
+e.Cell <- compareCluster(ENTREZID~cluster+level, 
+                          data=common.ent.all, 
+                          fun="enricher",
+                          universe = universe.ent.all$ENTREZID,
+                          TERM2GENE = cells,
+                          pvalueCutoff  = 0.01,
+                          qvalueCutoff = 0.05)
+     e.Cell <- setReadable(e.Cell, "org.Hs.eg.db", keyType = "ENTREZID")
+     e.Cell@compareClusterResult$cluster <- 
+       factor(e.Cell@compareClusterResult$cluster, levels = groups)
+     e.Cell@compareClusterResult$level <- 
+       factor(e.Cell@compareClusterResult$level, levels = o.groups )
+     
+e.sCell <- compareCluster(ENTREZID~cluster+level, 
+                          data=common.ent.all, 
+                          fun="enricher",
+                          universe = universe.ent.all$ENTREZID,
+                          TERM2GENE = scells,
+                          pvalueCutoff  = 0.01,
+                          qvalueCutoff = 0.05)
+     e.sCell <- setReadable(e.sCell, "org.Hs.eg.db", keyType = "ENTREZID")
+     e.sCell@compareClusterResult$cluster <- 
+       factor(e.sCell@compareClusterResult$cluster, levels = groups)
+     e.sCell@compareClusterResult$level <- 
+       factor(e.sCell@compareClusterResult$level, levels = o.groups )
+     
+e.GO <- compareCluster(ENTREZID~cluster+level, 
+                       data = common.ent.all, 
+                       fun="enrichGO",
+                       universe = universe.ent.all$ENTREZID,
+                       OrgDb = org.Hs.eg.db,
+                       ont = "ALL",
+                       pAdjustMethod = "BH",
+                       pvalueCutoff  = 0.01,
+                       qvalueCutoff = 0.05,
+                       pool = T)
+e.GO <- setReadable(e.GO, OrgDb = org.Hs.eg.db, keyType="ENTREZID")
+e.GO@compareClusterResult$cluster <- factor(e.GO@compareClusterResult$cluster, levels = groups)
+e.GO@compareClusterResult$level <- factor(e.GO@compareClusterResult$level, levels = o.groups)
+```
+
+```{r enrich for fimbrial}
+## Download cell markers:
+## http://yikedaxue.slwshop.cn/download.php
+Cell_marker_Human <- read_excel(paste(deg.dir, "Cell_marker_Human.xlsx", sep = "/"))
+Cell_marker_Seq <- read_excel(paste(deg.dir, "Cell_marker_Seq.xlsx", sep = "/"))
+
+## Human cell markers
+cells <- Cell_marker_Human %>%
+    dplyr::select('Cell name', GeneID) %>%
+    dplyr::mutate(GeneID = strsplit(GeneID, ', ')) %>%
+    tidyr::unnest(cols = c(GeneID))
+
+## Single cell markers
+scells <- Cell_marker_Seq %>%
+    dplyr::filter(Species == "Human") %>%
+    dplyr::select('Cell name', GeneID) %>%
+    dplyr::mutate(GeneID = strsplit(GeneID, ', ')) %>%
+    tidyr::unnest(cols = c(GeneID))
+
+set.seed(1220)
+e.sCell <- compareCluster(ENTREZID~level, 
+                          data=common.ent.all, 
+                          fun="enricher",
+                          universe = universe.ent.all$ENTREZID,
+                          TERM2GENE = scells,
+                          pvalueCutoff  = 0.01,
+                          qvalueCutoff = 0.05)
+e.sCell <- setReadable(e.sCell, "org.Hs.eg.db", keyType = "ENTREZID")
+e.sCell@compareClusterResult$level <- factor(e.sCell@compareClusterResult$level, levels = o.groups )
+
+e.GO <- compareCluster(ENTREZID~level, 
+                       data = common.ent.all, 
+                       fun="enrichGO",
+                       universe = universe.ent.all$ENTREZID,
+                       OrgDb = org.Hs.eg.db,
+                       ont = "ALL",
+                       pAdjustMethod = "BH",
+                       pvalueCutoff  = 0.01,
+                       qvalueCutoff = 0.05,
+                       pool = F)
+e.GO <- setReadable(e.GO, OrgDb = org.Hs.eg.db, keyType="ENTREZID")
+e.GO@compareClusterResult$level <- factor(e.GO@compareClusterResult$level, levels = o.groups)
+
+```
+
+To visualize the data:
+
+```{r dotplot of enricher results on single cell markers}
+set.seed(1220)
+     geneList <- common.ent.all$avg_log2FC
+     names(geneList) <- as.character(common.ent.all$gene)
+     geneList = sort(geneList, decreasing = TRUE)
+     cluster.ident<-"PCA_clusters"
+     result <- e.GO
+     result.name <- "all.fimbrial.GO"
+     
+      ## obtain median log2 fold change of each features in the enrich term in the result
+     #median.FC <- common.ent.all[c(1,2)] %>% group_by(gene) %>%  dplyr::summarise(median_log2FC = ifelse(n() > 1, median(avg_log2FC), avg_log2FC))
+     
+     ## Enrichment (over-representation analysis) results
+     ## Adjust the axis text by angle = 60 to fit long name:
+     png(file = paste(data.dir, "STU/DEA", paste(file.name, cluster.ident, result.name, "dot.png", sep = "."), sep = "/"), width = 2400, height = 3500, res=300)
+     dotplot(result, x="cluster", showCategory = 3, includeAll = F) + facet_grid(~level) + theme(axis.text.x = element_text(hjust = 1, angle = 60)) + ggtitle(paste("Enrichment result from", result.name, sep = " ")) 
+     dev.off() 
+     
+     png(file = paste(data.dir, "STU/DEA/Comparison_Patient", paste(file.name, result.name, "dot.png", sep = "."), sep = "/"), width = 2000, height = 3000, res=300)
+     dotplot(result, x="level", showCategory = 10, includeAll = F) + theme(axis.text.x = element_text(hjust = 0.5, angle = 0)) + ggtitle(paste("Enrichment result from", result.name, sep = " ")) 
+     dev.off() 
+```
+
+Here we only perform the analysis on single cell markers in each
+clusters in order to functional annotate the clusters for further
+downstream analysis. I reordered the clusters so that the first 3
+clusters (0,2 & 6) are considered to be FTEs based on cell marker
+annotation, cluster 3 mixed with different cells while the rest are
+Stromal enriched, and we can compare the if the enriched GO terms and
+single cell markers are consistent to what we see on the tissue.
+
+![](gitHub/Data/STU/DEA/res_0.3/annotation/STU.sct.v2.merged.PCA.14.Harmony.SNN.res.0.3.enrich.Cell.dot.png)
+
+![](gitHub/Data/STU/DEA/res_0.3/annotation/STU.sct.v2.merged.PCA.14.Harmony.SNN.res.0.3.enrich.sCell.dot.png)
+
+Perform compare over-representation analysis using GO or MSig on all
+clusters, and FTE cluster 6 seems has a lot upregrelated annotations
+compared to the other two.
+
+For GSEA, all 2993 features from the DEG will be used in the the
+analysis with their Entrez ids and log2 fold change as input. This is a
+bit heavier process and can take 30 mins depending on the machine.
+
+```{r GSEA analysis}
+## perform GSEA for each cluster and save them in a list:
+all.gseGO <- list()
+all.gseCell <- list()
+all.gsesCell <- list()
+
+for (i in levels(as.factor(common.ent.all$cluster))) {
+  
+  ## Prepare a gene list for GESA 
+  cluster.markers <- common.ent.all %>% group_by(cluster) %>% subset(cluster == i)
+  geneList <- cluster.markers$avg_log2FC
+  names(geneList) <- cluster.markers$ENTREZID
+  geneList <- sort(geneList, decreasing = TRUE)
+
+  ## Perform GSEA on cluster
+  set.seed(1220)
+  gseGO <- gseGO(geneList = geneList,
+                OrgDb = org.Hs.eg.db,
+                ont = "ALL",
+                pvalueCutoff = 0.01,
+                seed = TRUE,
+                verbose = FALSE)
+  gseGO <- setReadable(gseGO, "org.Hs.eg.db", keyType = "ENTREZID")
+  all.gseGO[[i]] <- gseGO
+  
+  gseCell <- GSEA(geneList, 
+               TERM2GENE = cells,
+               pvalueCutoff  = 0.01,
+               seed = TRUE,
+               verbose = FALSE)
+  gseCell <- setReadable(gseCell, "org.Hs.eg.db", keyType = "ENTREZID")
+  all.gseCell[[i]] <- gseCell
+  
+  gsesCell <- GSEA(geneList, 
+               TERM2GENE = scells,
+               pvalueCutoff  = 0.01,
+               seed = TRUE,
+               verbose = FALSE)
+  gsesCell <- setReadable(gsesCell, "org.Hs.eg.db", keyType = "ENTREZID")
+  all.gsesCell[[i]] <- gsesCell
+}
+
+all.gseGO <- all.gseGO[groups]
+all.gseCell <- all.gseCell[groups]
+all.gsesCell <- all.gsesCell[groups]
+```
+
+```{r visualize GSEA results}
+setwd(deg.dir)
+geneList <- common.ent.all$avg_log2FC
+     names(geneList) <- as.character(common.ent.all$gene)
+     geneList = sort(geneList, decreasing = TRUE)
+gsedata <- all.gseGO
+gsea.data.name <- "gsea.GO"
+
+## GSEA results
+## loop to plot all clusters in the list. Note, some cluster has no result due to too few gene to match to any gene set. 
+png(file = paste(file.name, cluster.ident, gsea.data.name, "png", sep = "."), width = 4000, height = 5000, res = 300)
+plot_list = list()
+for (i in names(gsedata)) {
+   n <- nrow(gsedata[[i]]) 
+  if (n > 10) {
+    print(
+      p <- gseaplot2(gsedata[[i]], geneSetID = 1:10,  pvalue_table = F, ES_geom = "line") + ggtitle(paste("Cluster", i, sep = " ")) + theme(axis.title.x=element_blank()) + theme(legend.position = "none")
+    )
+  } else if (n != 0) {
+    print(
+      p <- gseaplot2(gsedata[[i]], geneSetID = 1:n,  pvalue_table = F, ES_geom = "line") + ggtitle(paste("Cluster", i, sep = " ")) + theme(axis.title.x=element_blank()) + theme(legend.position = "none")
+    )
+  } else { next }
+   plot_list[[i]] = p
+}
+ggarrange(plotlist=plot_list)
+dev.off()
+
+png(file = paste(file.name, cluster.ident, gsea.data.name, "cnet", "png", sep = "."), width = 6000, height = 6000, res = 300)
+plot_list = list()
+for (i in names(gsedata)) {
+   n <- nrow(gsedata[[i]]) 
+  if (n != 0) {
+    print(
+      p <- cnetplot(gsedata[[i]], categorySize="pvalue", foldChange = geneList, cex_label_category = 1.5, cex_label_gene = 0.5, legend_n = 2) + ggtitle(paste("Cluster", i, sep = " ")) + theme(plot.title = element_text(size = 20, face = "bold"))
+    )
+  } else { next }
+   plot_list[[i]] = p
+}
+ggarrange(plotlist=plot_list)
+dev.off()
+
+```
+
+According to the publication in 2022 by Nicole Ulrich and others, they
+were able to identify 12 major cell types from Fallopian tube (FT) from
+four healthy, pre-menopausal subjects, as well as unique markers gene
+expression pattern in each cell types. They also observed shifts in
+epithelial and stromal populations and cell-type-specific changes in
+extracellular matrix and TGF-b signaling while comparing to the
+hydrosalpinx samples (fibrosis pathophysiology).
+
+###### 4. Expression pattern of reference markers for 12 cell types in our clusters
+
+![](gitHub/Data/STU/DEA/res_0.3/scRNA_ref_DEG/STU.sct.v2.merged.PCA.14.Harmony.SNN.res.0.3.ref.markers.dot.lib.png)
+
+![](gitHub/Data/STU/DEA/res_0.3/scRNA_ref_DEG/STU.sct.v2.merged.PCA.14.Harmony.SNN.res.0.3.ref.markers.dot.orig.png)
+
+![](gitHub/Data/STU/DEA/res_0.3/scRNA_ref_DEG/STU.sct.v2.merged.PCA.14.Harmony.SNN.res.0.3.ref.markers.dot.cluster.png)
+
+![](gitHub/Data/STU/DEA/res_0.3/scRNA_ref_DEG/STU.sct.v2.merged.PCA.14.Harmony.SNN.res.0.3.new.markers.dot.cluster.png)
+
+![](gitHub/Data/STU/DEA/res_0.3/scRNA_ref_DEG/plot_image_spatial_scRNAref_FOXJ1.png)
+
+![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene/image_spatgene_ACTG2_23.png)
+
+###### 5. Expression pattern of other reference markers for BRCA
+
+```{r RNA expression for protein markers}
+## plot reference gene spatially
+pro.markers <- c("C4BPB", "KIF20B", "VPS11", "CRTAC1", "TMEM67", "GJA1", "ATP2B4")
+TILs.markers <- c("PDCD1", "LAG3", "CD79A")
+for (ftr in pro.markers) {
+  png(file = paste(data.dir, "/STU/DEA/proteomic_Bahar-Shany_2022/", "image_proteomic_sig_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/proteomic_Bahar-Shany_2022/", "image_proteomic_sig_scaled_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+
+png(file = paste(data.dir, "/STU/DEA/proteomic_Bahar-Shany_2022/", "image_TILs_all.png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = TILs.markers, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    blend = T,
+                    ncol = 5,
+                    dark.theme = T,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+```
+
+###### 6. Spatial differential features and tissue specific features
+
+We will first compare the number of features from cluster DEA and those
+common spatial correlated genes, and see how many of them are
+overlapping.
+
+```{r overlapped spatial correlated features}
+source("/home/minerva/VisiumST/gitHub/library.R")
+source("/home/minerva/VisiumST/gitHub/directory.R")
+
+## Visualize overlap genes using venndiagram
+## removing the mitochondrial, ribosomal and pseudogene or Long Intergenic Non-Protein Coding RNA
+## combine both PCA and NMF DEG
+s1 <-  all.markers.filt
+
+s2
+
+common.spatgenes <- read_csv("~/VisiumST/gitHub/Data/STU/Spatgenes/common_spatgenes.csv")
+s3 <-  common.spatgenes %>% 
+  dplyr::filter(!grepl("^MT-", gene), 
+                !grepl("^RP[SL]", gene),
+                !grepl("^MTRNR", gene),
+                !grepl("^LINC", gene))
+
+studies = list( S1=s1$gene %>% unique(),
+                S2=s2$gene)
+ol = calculate.overlap(x = studies)
+ol_size=sapply(ol, length)
+
+myCol <- brewer.pal(4, "Pastel2")
+venn.diagram(
+  x = studies,
+  category.names = c("DEG across PCA clusters" , "Spatial correlated"),
+  filename = paste(file.name, cluster.ident, "spatial.deg.venn.tiff", sep = "."),
+  
+  # Circles
+  lwd = 2,
+  lty = 'blank',
+  fill = myCol[1:2],
+  # Numbers
+  cex = 0.6,
+  fontface = "bold",
+  fontfamily = "sans",
+  # Set names
+  cat.cex = 0.6,
+  cat.fontface = "bold",
+  cat.default.pos = "outer",
+  cat.pos = c(-27, 27),
+  cat.dist = c(0.055, 0.055),
+  cat.fontfamily = "sans",
+  #rotation = 1
+)
+```
+
+Let's do the same filtering on the DEA list together with the common
+spatial correlated genes:
+
+1.  filter away MT- and RPL genes as well as pseudogenes; There are 1334
+    unique features from the cluster DEA and 377 features common
+    spatially correlated. Among those, 280 are common spatial correlated
+    and 56 have correlation score equal or bigger than 0.5.
+
+    ![](gitHub/Data/STU/DEA/res_0.3/STU.sct.v2.merged.PCA.14.Harmony.SNN.res.0.3.spatial.deg.venn.png)
+
+2.  Select the common features which have p-adjust below 0.01 and the
+    top gene ordered by fold change.
+
+3.  Select top 2 features from each cluster and plot total 14 features
+    spatially.
+
+```{r top spatial DEA markers}
+## Lets cross the spatial markers which have at least 0.5 score with the DEG list
+spatial.de.markers <- inner_join(s1, s2[1])
+top10.new.sp.markers <- spatial.de.markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::slice_min(order_by = p_val_adj) %>%
+  dplyr::slice_max(order_by = avg_log2FC, n = 10)
+
+write.table(spatial.de.markers, 
+            file = paste(data.dir, "STU/DEA", paste(file.name, cluster.ident, "common.spatial.deg.csv", sep = "."), sep = "/"), 
+            sep =",", quote = F, row.names = F, col.names = T)
+write.table(top10.new.sp.markers, 
+            file = paste(data.dir, "STU/DEA", paste(file.name, cluster.ident, "topNew.spatial.deg.csv", sep = "."), sep = "/"), 
+            sep =",", quote = F, row.names = F, col.names = T)
+
+## MAKE the order nicer for violin plots
+Idents(data) <- "tissue_info"
+Idents(data) <- factor(Idents(data), levels = c("Fimbrial", "Proximal", "Otherside"))
+data[["tissue_info"]] <- Idents(data)
+
+Idents(data) <- "Visium_clusters"
+Idents(data) <- factor(Idents(data),
+                       levels = c("FTE-A", "FTE-B", "FTE-C", "Mixed", "Stromal-A", "Stromal-B", "Stromal-C"))
+data[["Visium_clusters"]] <- Idents(data)
+
+spDEG <- unique(top10.new.sp.markers$gene)
+
+for (ftr in spDEG) {
+  png(file = paste(data.dir, "/STU/DEA/res_0.3/most_spatial_DEG/", "image_spDEG_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/DEA/res_0.3/most_spatial_DEG/", "image_spDEG_scale_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+  
+for (ftr in spDEG) {
+  png(file = paste(data.dir, "/STU/DEA/res_0.3/most_spatial_DEG/", "plot_vln_tissue_", ftr, ".png", sep = ""), width = 2000, height = 1500, res = 300)
+  print(
+     VlnPlot(data, features = ftr, split.by = "tissue_info", pt.size = 0) + xlab("")
+  )
+    dev.off()
+}
+```
+
+#### 5. Subset, reclustering and further analysis
+
+Next we will subset the clusters which share similar gene expression
+profile, and perform the analysis again to get more details or sub types
+from each cell population. According to the DEG results, we subset
+clusters 0, 1, 9 and 3 to be FTE set, the rest of clusters to be stoma
+set.
+
+Those subset data will be SCTransform and regress away variable
+mitochondrial gene expression.
+
+```{r}
+source("/home/minerva/VisiumST/gitHub/library.R")
+source("/home/minerva/VisiumST/gitHub/directory.R")
+
+data <- STU.sct.merged.dims
+## Retrieve the selected clustering result
+npcs <- 14
+dims <- 1:npcs 
+resolution <- 0.3
+harmony.ident <- paste("PCA", npcs, "Harmony", "SNN", "res", resolution, sep = ".")
+Idents(data) <- data[[harmony.ident]]
+
+## subset stroma or FTE clusters
+FTE <- SubsetSTData(data, idents = c(0, 2, 6)) 
+Mix <- SubsetSTData(data, idents = 3) 
+stroma <- SubsetSTData(data, idents = c(1, 4, 5))
+
+## Perform PCA, harmony and clustering
+source("/home/minerva/VisiumST/gitHub/choose_pca_dims.R")
+source("/home/minerva/VisiumST/gitHub/pca_harmony_sct.R")
+source("/home/minerva/VisiumST/gitHub/choose_clustering_res.R")
+source("/home/minerva/VisiumST/gitHub/find_DEG_sct.R")
+
+## FTE: PCA 14, harmony with seq:id, res 0.3
+
+## Create some new idents for annotation of heatmap
+Idents(data) <- "loupeA.ident"
+data[["Morphology"]] <- gsub(pattern = "_\\d+$", "", data@active.ident)
+Idents(data) <- "Morphology" 
+Idents(data) <- factor(Idents(data), 
+                       levels = c("FTE","Mix", "FTE Stroma","Stroma"))
+data[["Morphology"]] <- Idents(data)
+
+Idents(data) <- "mutation"
+Idents(data) <- factor(Idents(data),
+                       levels = c("BRCA1", "BRCA2"))
+data[["mutation"]] <- Idents(data)
+
+Idents(data) <- "age"
+Idents(data) <- factor(Idents(data),
+                       levels = c("35+", "40+", "50+"))
+data[["age"]] <- Idents(data)
+
+## Plot regular seurat heatmap
+morph.cols <- c("#8B7500", "#FFD700", "#FFBBFF", "#9400D3")
+sample.cols <- scCustomize_Palette(num_groups = 20, ggplot_default_colors = T)
+mut.cols <- c("#63B8FF", "#B3EE3A")
+age.cols <- c("#B03060", "#FFA07A", "#FFE4B5")
+
+pdf(paste(file.name, harmony.ident, "deg.hm.pdf", sep = "."), 
+    width = 15, height = 15, onefile = F) 
+plot_heatmap(
+  data,
+  markers = unique(top.markers$gene),
+  sort_var = c(harmony.ident, 
+               "Morphology"),
+  anno_var = c(harmony.ident,
+               "Morphology",
+               "percent.Mito", 
+               "nCount_RNA", 
+               "mutation", 
+               "age",
+               "library_id"),
+  anno_colors = list("Paired",
+                     morph.cols,
+                     "Greens", 
+                     c("blue","white","red"), 
+                     mut.cols,
+                     age.cols,
+                     sample.cols),
+  hm_colors = c("purple","black","yellow"))
+dev.off()
+
+## Seurat heatmap
+Idents(data) <- harmony.ident
+png(paste(file.name, harmony.ident, "deg.hm.seurat.png", sep = "."), 
+    width = 1200, height = 1200)
+print(
+DoHeatmap(data, features = unique(all.markers$gene), size = 3)
+)
+dev.off()
+```
+
+![](gitHub/Data/STU/Subset/FTE/res_0.3/FTE.subset.PCA.14.Harmony.SNN.res.0.3.comparison.uwot.png)
+
+![](gitHub/Data/STU/Subset/FTE/FTE.subset.PCA.clustree.png)
+
+![](gitHub/Data/STU/Subset/FTE/FTE.subset.harmony.clustree.png)
+
+#### 6. HRD gene signature
+
+Based on Peng et al. 2014, and perform PCA based on only the 230 genes.
+
+```{r HRD genes signature clustering}
+data <- se.merged
+DefaultAssay(data) <- "SCT"
+
+## select variable features
+HRD_gene_signature <- read_csv("~/VisiumST/HRD_gene_signature.csv", col_names = FALSE)
+HRD_gene_signature<-t(HRD_gene_signature) %>% base::as.character() %>% na.omit() 
+
+## 39 genes don't expressed
+data <- ScaleData(data, features = HRD_gene_signature)
+base::setdiff(HRD_gene_signature, rownames(data[["SCT"]]@scale.data))
+npcs <-4
+data <- RunPCA(data, assay = "SCT", features = HRD_gene_signature, verbose = T, npcs = npcs)
+
+## run harmony
+set.seed(1220)
+setwd(dims.dir)
+harmony.reduction <- paste("PCA", npcs, "harmony.by.lib.ident", sep = ".")
+png(paste(file.name, "harmony.iteration.png", sep = "."), 
+    width = 706, height = 504)
+  print(
+    data <- RunHarmony(
+      data, reduction = "pca", assay.use = "SCT", group.by.vars = "library_id", 
+      plot_convergence = TRUE)
+  )
+dev.off()
+  
+## Two dimension reduction using tSNE, UMAP or UWOT for harmony data
+dims <- 1: npcs
+data <- RunTSNE(data, assay = "SCT", reduction = "harmony", dims = dims, 
+                tsne.method = "Rtsne", seed.use = 1)  
+data <- RunUMAP(data, assay = "SCT", reduction = "harmony", dims = dims, 
+                umap.method = "umap-learn", metric = "correlation", 
+                min.dist = 0.1, n.neighbors = 30, reduction.name = "umap")
+data <- RunUMAP(data, assay = "SCT", reduction = "harmony", dims = dims, 
+                umap.method = "uwot", metric = "cosine", 
+                min.dist = 0.01, n.neighbors = 30, reduction.name = "uwot") 
+
+## perform clustering
+  resolution <- 0.2 # use the clustree result to decide 0.5 (11) or 0.6 give 12 clusters; when PCA is 21 0.5 gives 11.
+  ## run clustering on PCA data
+  pca.ident <- paste("PCA", npcs, "SNN", "res", resolution, sep = ".")
+  data <- 
+    FindNeighbors(data, assay = "SCT", reduction = "pca", dims = dims) %>% 
+    FindClusters(resolution = resolution) %>% 
+    BuildClusterTree(assay = "SCT", reduction = "pca", dims = dims)
+  ## back up the new clusters and save rds
+  data[[pca.ident]] <- Idents(data)
+  
+  
+  ## run clustering on harmony data
+  harmony.ident <- paste("PCA", npcs, "Harmony.SNN.res", resolution, sep = ".")
+  data <- 
+    FindNeighbors(data, assay = "SCT", reduction = "harmony", dims = dims) %>% 
+    FindClusters(resolution = resolution) %>% 
+    BuildClusterTree(assay = "SCT", reduction = "harmony", dims = dims)
+  data[[harmony.ident]] <- Idents(data)
+  
+
+## plot each patient 
+Idents(data) <- "library_id"
+id <- levels(data)
+cluster.ident <- harmony.ident
+Idents(data) <- cluster.ident
+
+## plot spatial dimplot of all samples 
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_image_spatial_clustering", ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+print(
+ ST.FeaturePlot(data, 
+                features = cluster.ident, 
+                cols = col_vector, 
+                ncol = 5, 
+                label.by = "library_id", 
+                show.sb = F) 
+)
+dev.off()
+
+## plot spatial dimplot with H&E background of all samples
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_image_spatialHE_clustering", ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+  print(
+    FeatureOverlay(data, 
+                   features = cluster.ident, 
+                   sampleids = 1:18,
+                   pt.size = 1, 
+                   pt.alpha = 0.5, 
+                   pt.border = F,
+                   split.labels = T, 
+                   show.sb = FALSE, 
+                   ncol = 5,
+                   label.by = "library_id") &
+      theme(legend.position = "None", plot.title = element_blank())
+
+  )
+ dev.off() 
+
+## plot dimplot with NMF clustering annotation
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_clustering", ".png", sep = ""), width = 1500, height = 1500, res = 300) 
+  print(
+  DimPlot(data, group.by = cluster.ident, label = TRUE, label.size = 8, label.box = T, repel = T, reduction = "uwot", cols = col_vector) + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") + NoLegend()
+  )
+ dev.off()
+
+## plot dimplot with morphology annotation  
+Idents(data) <- "loupeA.ident"
+data[["morphology"]] <- gsub(pattern = "_\\d+$", "", data@active.ident)
+Idents(data) <- "morphology" 
+Idents(data) <- factor(Idents(data), 
+                       levels = c("FTE","Mix", "FTE Stroma","Stroma"))
+data[["morphology"]] <- Idents(data)
+
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_morphology", ".png", sep = ""), width = 1500, height = 1500, res = 300) 
+  print(
+    DimPlot(data, group.by = "morphology", label = TRUE, label.box = T, label.size=3, repel = T, reduction = "uwot") + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") + NoLegend()
+  )
+ dev.off()
+ 
+## plot dimplot with BRCA mutation annotation  
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_mutation", ".png", sep = ""), width = 1500, height = 1500, res = 300) 
+  print(
+    DimPlot(data, group.by = "mutation", label = TRUE, label.box = T, label.size=3, repel = T, reduction = "uwot") + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") + NoLegend()
+  )
+ dev.off() 
+ 
+## plot dimplot with tissue origin annotation  
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_tissue_origin", ".png", sep = ""), width = 1500, height = 1500, res = 300) 
+  print(
+    DimPlot(data, group.by = "origin", label = TRUE, label.box = T, label.size=3, repel = T, reduction = "uwot") + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") + NoLegend()
+  )
+ dev.off()
+ 
+## plot dimplot with prep info annotation  
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_patient", ".png", sep = ""), width = 1500, height = 1500, res = 300) 
+  print(
+    DimPlot(data, group.by = "patient_id", label = TRUE, label.box = T, label.size=3, repel = T, reduction = "uwot") + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") + NoLegend()
+  )
+ dev.off()
+
+## plot dimplot with slide id annotation  
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_slide", ".png", sep = ""), width = 1500, height = 1500, res = 300) 
+  print(
+    DimPlot(data, group.by = "slide_id", label = TRUE, label.box = T, label.size=3, repel = T, reduction = "uwot") + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") + NoLegend()
+  )
+ dev.off()
+
+## plot dimplot with seq id annotation  
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_seq", ".png", sep = ""), width = 1500, height = 1500, res = 300) 
+  print(
+    DimPlot(data, group.by = "seq_id", label = TRUE, label.box = T, label.size=3, repel = T, reduction = "uwot") + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") + NoLegend()
+  )
+ dev.off() 
+ 
+## plot dimplot with library annotation  
+png(file = paste(data.dir, "/STU/PCA/Dim_patient/", "plot_dim_library", ".png", sep = ""), width = 2100, height = 1800, res = 300) 
+  print(
+    DimPlot(data, group.by = "library_id", label = F, label.box = F, label.size=1, repel = T, reduction = "uwot") + xlab("uwot_PCA_1") + ylab("uwot_PCA_2") 
+  )
+ dev.off()  
+ 
+ 
+## Prepare empty lists
+all.corrected.umap <- list()
+all.corrected.uwot <- list()
+all.corrected.cluster <- list()
+all.loupeA.cluster <- list()
+
+# Return the corrected data from the backup as default for the Seurat object
+Idents(data) <- harmony.ident
+
+out.dir <- paste(anno.dir, harmony.ident, sep = "/")
+dir.create(out.dir, recursive = T)
+setwd(out.dir)
+
+## split the Seurat object
+corrected <- SplitObject(data, split.by = "library_id")
+
+## Edit the barcodes into a format that is compatible with the Loupe Browser
+for (i in seq_along(corrected)) {
+# Extract sample id  
+id <- unique(corrected[[i]]$library_id)
+
+# Extract barcodes and umap embedding values
+barcode <- rownames(Embeddings(corrected[[i]], reduction = "umap"))
+barcode <- gsub(paste0("-1", "_", i), "", barcode)
+barcode <- paste0(barcode, "-", i)
+proj <- Embeddings(corrected[[i]], reduction = "umap")
+umap <- cbind("Barcode" = barcode, data.frame(proj))
+all.corrected.umap[[id]] <- umap
+
+# Export new clusters
+clusters <-  Idents(corrected[[i]])
+clusters.data <- cbind("Barcode" = barcode, data.frame("clusters" = clusters))
+all.corrected.cluster[[id]] <- clusters.data
+}
+
+# Same way for uwot reduction and loupeA clustering
+Idents(data) <- data[["loupeA.ident"]] 
+
+corrected <- SplitObject(data, split.by = "library_id")
+
+for (i in seq_along(corrected)) {
+id <- unique(corrected[[i]]$orig.ident)
+barcode <- rownames(Embeddings(corrected[[i]], reduction = "uwot"))
+barcode <- gsub(paste0("-1", "_", i), "", barcode)
+barcode <- paste0(barcode, "-", i)
+proj <- Embeddings(corrected[[i]], reduction = "uwot")
+uwot <- cbind("Barcode" = barcode, data.frame(proj))
+all.corrected.uwot[[id]] <- uwot
+loupeA.clusters <-  Idents(corrected[[i]])
+loupeA.clusters.data <- cbind("Barcode" = barcode, data.frame("clusters" = loupeA.clusters))
+all.loupeA.cluster[[id]] <- loupeA.clusters.data
+}
+
+# merge the two samples back into the same object, and export into a CSV
+corrected.umap <- bind_rows(all.corrected.umap)
+write.table(corrected.umap, file="corrected_umap.csv", sep = ",", quote = F, row.names = F, col.names = T)
+corrected.uwot <- bind_rows(all.corrected.uwot)
+write.table(corrected.uwot, file="corrected_uwot.csv", sep = ",", quote = F, row.names = F, col.names = T)
+corrected.clusters <- bind_rows(all.corrected.cluster)
+write.table(corrected.clusters, file="corrected_clusters.csv", sep = ",", quote = F, row.names = F, col.names = T)
+loupeA.clusters <- bind_rows(all.loupeA.cluster)
+write.table(loupeA.clusters, file="loupeA_clusters.csv", sep = ",", quote = F, row.names = F, col.names = T)
+```
+
+```{r Import HRD annotation to merged data file}
+## Import loupe annotation by Anna
+ HRD_clusters <- read_csv("gitHub/Data/STU/PCA/Dim_patient/PCA.4.Harmony.SNN.res.0.2/HRD_corrected_clusters.csv")
+  HRD_clusters[["Barcode"]] <- gsub("-", "-1_", HRD_clusters[["Barcode"]])
+  new.idents <- loupe.idents[["Graph.based"]]
+  names(new.idents) <- loupe.idents[["Barcode"]]
+  data <- AddMetaData(data, metadata = new.idents, col.name = "HRD.ident")
+```
+
+#### 7. Spatial Auto-correlation
+
+STutility provides additional solutions beside the clustering (see
+above) to explore the spatial features in the tissues.
+
+First, we can use Spatial Auto-correlation to look for genes that
+spatially conserved expressing across the tissues. The ranking method
+makes use neighborhood networks to compute the spatial lag for each
+gene, here defined as the summed expression of that gene in neighboring
+spots. Each gene is then ranked by the correlation between the lag
+vector and the original expression vector. The output is a `data.frame`
+with gene names ranked by decreasing spatial auto-correlation.
+
+This method is partly inspired by work from the [Giotto
+team](http://spatial.rc.fas.harvard.edu/spatialgiotto/giotto.html) and
+we reccomend you to check out their R package Giotto and the related
+publication: "Giotto: a toolbox for integrative analysis and
+visualization of spatial expression data"
+(<https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02286-2>.
+
+By default, the saptial-auto-correlation scores are only calculated for
+the variable genes in the Seurat object, here we have 3000. Among the
+top most variable features in our Seurat object, we find genes coding
+for hemoglobin; "Hbb-bs" "Hba-a1" "Hba-a2". These are typically
+expressed in blood vessels which are more randomly distributed across
+the tissue compared to larger tissue structures. Knowing the spatial
+auto-correlation can therefore be useful to distinguish genes expressed
+in larger tissue compartments. One way to make use of this is to
+restrict the selection of features used for dimensionality reduction and
+clustering to include ony gene that are highly variable and spatially
+auto-correlated, and that way avoid clustering based on structures such
+as blood vessels.
+
+The default expression level is using the normalized counts data. One
+can also choose scale.data but then it needs to be centered.
+
+##### 1. Genes with high spatial correlation scores in all samples:
+
+```{r spatial auto correction}
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_gene", "top20_var_gene_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_gene", "top20_var_gene_scale_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_gene", "top100_spat_gene_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_gene", "top100_spat_gene_scale_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_patient", "top20_spat_gene_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_patient", "top20_spat_gene_scale_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_patient", "top20_uni_spat_gene_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "image_by_patient", "top20_uni_spat_gene_scale_data", sep = "/"), recursive = T)
+dir.create(paste(data.dir, "STU", "Spatgenes", "spat_corr_list", "unique", sep = "/"), recursive = T)
+
+## check the most variable features after sctransform
+# plot all samples in one figure
+data <- LoadImages(data, time.resolve = T, xdim = 1500)
+DefaultAssay(data) <- "SCT"
+
+## removing the mitochondrial, ribosomal and pseudogene or Long Intergenic Non-Protein Coding RNA before running the downstream analysis
+  mito_ribo_genes <- grep(pattern = "^MRP[SL]", x = rownames(data), value = TRUE)
+  mito_genes <- grep(pattern = "^MT-", x = rownames(data), value = TRUE)
+  VariableFeatures(data) <- setdiff(VariableFeatures(data), c(mito_ribo_genes, mito_genes))
+
+cscale <- c("darkblue", "blue", "lightblue", "white", "lightgray", "mistyrose", "red", "darkred", "black")
+
+top <- data@assays$SCT@var.features[1:20]
+for (ftr in top) {
+  png(file = paste(data.dir, "/STU/Spatgenes/image_by_gene/top20_var_gene_data/", "image_vargene_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+   print(
+     FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+  
+  png(file = paste(data.dir, "/STU/Spatgenes/image_by_gene/top20_var_gene_scale_data/", "image_vargene_", ftr, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+   print(
+     ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+ )
+  dev.off()
+}
+
+## combine spatial correlated genes from different samples and plot them.
+# check the most variable features their spatial correlation 
+# Create own merging function
+my_merge <- function(df1, df2){                                
+  merge(df1, df2, by = "gene")
+}
+#file.list <- list.files(path = paste(data.dir, "STU", "Spatgenes", "spat_corr_list", sep = "/"), pattern="*csv")
+file.list <- c("PO2.csv","PO2_2re.csv","PO6.csv", "PO7_A1.csv", "PO7_2.csv", "PO9_B1.csv", "PO13.csv","PO13a.csv","PO20.csv", "PO20a.csv", "PO20_2.csv","PO28.csv","PO35.csv","PO37.csv","PO40.csv","PO40_2.csv","PO41.csv","PO45.csv")
+
+## renumber the barcodes and merge all barcodes with morphology annotations
+spatgene.list <- list()
+for (i in seq_along(file.list)) {
+  spat <- read_csv(file = paste(data.dir, "STU", "Spatgenes", "spat_corr_list", file.list[i], sep = "/"), col_names = T)
+  sample.id <- gsub(".csv", "", file.list[i])
+  spatgene.list[[sample.id]] <- spat
+}
+spatgenes.common <- Reduce(my_merge, spatgene.list) 
+colnames(spatgenes.common) <- c("gene", 1:18)
+spatgenes.common$average <-rowMeans(spatgenes.common[2:19])
+spatgenes.common <- spatgenes.common[order(-spatgenes.common$average),] 
+write.table(spatgenes.common, file=paste0(data.dir, "/STU/Spatgenes/", "common_spatgenes.csv"), sep =",", quote = F, row.names = F, col.names = T)
+
+for (i in 1:100) {
+  ftr <- spatgenes.common$gene[[i]]
+  #feature <- "CCL2"
+  png(file = paste(data.dir, "/STU/Spatgenes/image_by_gene/top100_spat_gene_data/", "image_spatgene_", paste(ftr, i, sep = "_"), ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+  print(
+    FeatureOverlay(data,
+                    features = ftr, 
+                    sampleids = 1:18,
+                    pt.size = 0.8,
+                    pt.border = F,
+                    add.alpha = T,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(legend.position = "None", plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+  )
+dev.off()
+
+  png(file = paste(data.dir, "/STU/Spatgenes/image_by_gene/top100_spat_gene_scale_data/", "image_spatgene_", paste(ftr, i, sep = "_"), ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+  print(
+    ST.FeaturePlot(data,
+                    features = ftr, 
+                    indices = 1:18,
+                    slot = "scale.data", 
+                    center.zero = T,
+                    cols = cscale,
+                    ncol = 5,
+                    value.scale = "all",
+                    show.sb = F,
+                    label.by = "library_id") &
+       theme(plot.title = element_blank()) & 
+       plot_annotation(title = paste("Gene", ftr, sep = "_"))
+  )
+dev.off()
+}
+
+
+## plot top spatial correlated features of each samples
+#file.list <- list.files(path = paste(data.dir, "STU", "RDS", sep = "/"), pattern="*rds")
+file.list <- c("PO2.sct.rds","PO2_2re.sct.rds","PO6.sct.rds", "PO7_A1.sct.rds", "PO7_2.sct.rds", "PO9_B1.sct.rds", "PO13.sct.rds","PO13a.sct.rds","PO20.sct.rds", "PO20a.sct.rds", "PO20_2.sct.rds","PO28.sct.rds","PO35.sct.rds","PO37.sct.rds","PO40.sct.rds","PO40_2.sct.rds","PO41.sct.rds","PO45.sct.rds")
+## renumber the barcodes and merge all barcodes with morphology annotations
+sct.data.list <- list()
+for (i in seq_along(file.list)) {
+  sct <- readRDS(file = paste(data.dir, "STU", "RDS", file.list[i], sep = "/"))
+  sample.id <- gsub(".rds", "", file.list[i])
+  sct.data.list[[sample.id]] <- sct
+}
+
+for (i in 1:18) {
+  spatgenes <- spatgene.list[[i]]
+  data <- sct.data.list[[i]]
+  sampleID <- levels(Idents(data))
+  png(file = paste(data.dir, "/STU/Spatgenes/image_by_patient/top20_spat_gene_data/", "image_spatgene_", sampleID, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+  print(
+    FeatureOverlay(data, 
+                   features = spatgenes$gene[1:20], 
+                   pt.size = 0.8,
+                   pt.border = F,
+                   add.alpha = T,
+                   ncol = 5,
+                   value.scale = "all",
+                   show.sb = F) & 
+      theme(legend.position = "None", plot.subtitle = element_blank()) & 
+      plot_annotation(title = paste("Patient", sampleID, sep = "_"))
+        
+  )
+dev.off()
+
+  png(file = paste(data.dir, "/STU/Spatgenes/image_by_patient/top20_spat_gene_scale_data/", "image_spatgene_", sampleID, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+  print(
+    ST.FeaturePlot(data, 
+                   features = spatgenes$gene[1:20], 
+                   slot = "scale.data",
+                   center.zero = T,
+                   cols = cscale,
+                   grid.ncol = 5,
+                   show.sb = F) & 
+      theme(plot.title = element_blank()) & 
+      plot_annotation(title = paste("Patient", sampleID, sep = "_"))
+        
+  )
+dev.off()
+
+spatgenes.diff <- anti_join(spatgenes, spatgenes.common, by="gene")
+    write.table(spatgenes.diff, file=paste0(data.dir, "/STU/Spatgenes/spat_corr_list/unique/", paste(sampleID, "unique.csv", sep =".")), sep =",", quote = F, row.names = F, col.names = T)
+    png(file = paste(data.dir, "/STU/Spatgenes/image_by_patient/top20_uni_spat_gene_data/", "image_spatgene_uni_", sampleID, ".png", sep = ""), width = 8500, height = 7000, res = 600) 
+  print(
+    FeatureOverlay(data, 
+                   features = spatgenes.diff$gene[1:20], 
+                   pt.size = 0.8,
+                   pt.border = F,
+                   add.alpha = T,
+                   ncol = 5,
+                   value.scale = "all",
+                   show.sb = F) & 
+      theme(legend.position = "None", plot.subtitle = element_blank()) & 
+      plot_annotation(title = paste("Patient", sampleID, sep = "_"))
+  )
+dev.off()
+
+  png(file = paste(data.dir, "/STU/Spatgenes/image_by_patient/top20_uni_spat_gene_scale_data/", "image_spatgene_", sampleID, ".png", sep = ""), width = 8500, height = 7000, res = 500) 
+  print(
+    ST.FeaturePlot(data, 
+                   features = spatgenes.diff$gene[1:20], 
+                   slot = "scale.data",
+                   center.zero = T,
+                   cols = cscale,
+                   grid.ncol = 5,
+                   show.sb = F) & 
+      theme(plot.title = element_blank()) & 
+      plot_annotation(title = paste("Patient", sampleID, sep = "_"))
+        
+  )
+dev.off()
+}
+```
+
+-   "TAGLN" is an early marker of smooth muscle differentiation. It acts
+    as a tumor suppressor, and the **loss** of its expression is an
+    early event in cell transformation and the development of some
+    tumors, coinciding with cellular plasticity. This gene is mostly
+    enriched in the stromal area.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene_scale_data/image_spatgene_TAGLN_1.png)
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene_data/image_spatgene_TAGLN_1.png)
+
+-   "DES" This gene encodes a muscle-specific class III intermediate
+    filament. Homopolymers of this protein form a stable
+    intracytoplasmic filamentous network connecting myofibrils to each
+    other and to the plasma membrane. It exclusively expressed in some
+    of the stromal cells not like MYL9, TAGLN or FLNA, and there is some
+    difference between samples as well.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene/image_spatgene_DES_3.png)
+
+-   "ADIRF" plays a role in fat cell development; promotes adipogenic
+    differentiation and stimulates transcription initiation of master
+    adipogenesis factors like PPARG and CEBPA at early stages of
+    preadipocyte differentiation. Its overexpression confers resistance
+    to the anticancer chemotherapeutic drug cisplatin. This gene mostly
+    expressed in the stromal area and spread into the FTE area
+    especially for **PO20_2, PO35 and PO41**.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene/image_spatgene_ADIRF_6.png)
+
+-   IGFBP5, IGF-binding proteins prolong the half-life of the IGFs and
+    have been shown to either inhibit or stimulate the growth promoting
+    effects of the IGFs on cell culture. They alter the interaction of
+    IGFs with their cell surface receptors. This gene is highly enriched
+    in the stromal area.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene/image_spatgene_IGFBP5_8.png)
+
+-   "CRISP3" This gene is expressed in the male reproductive tract where
+    it plays a role in sperm function and fertilization, and the female
+    reproductive tract where it plays a role in endometrial receptivity
+    for embryo implantation. This gene is upregulated in certain types
+    of prostate cancer. Alternative splicing results in multiple
+    transcript variants. This gene is highly enriched in the FTE area.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene/image_spatgene_CRISP3_10.png)
+
+-   OVGP1, The protein is secreted from non-ciliated oviductal
+    epithelial cells. This gene is highly expressed in the FTE area in
+    almost all the patients. However, Patients **PO7, PO9, PO20 and
+    PO41** have relative low expression of this gene.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene_scale_data/image_spatgene_OVGP1_11.png)
+
+-   SLPI, This gene encodes a secreted inhibitor which protects
+    epithelial tissues from serine proteases. It is found in various
+    secretions including seminal plasma, cervical mucus, and bronchial
+    secretions, and has affinity for trypsin, leukocyte elastase, and
+    cathepsin G. Its inhibitory effect contributes to the immune
+    response by protecting epithelial surfaces from attack by endogenous
+    proteolytic enzymes. This gene is highly enriched in the FTE.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene_scale_data/image_spatgene_SLPI_18.png)
+
+-   AGR2, This gene encodes a member of the disulfide isomerase (PDI)
+    family of endoplasmic reticulum (ER) proteins that catalyze protein
+    folding and thiol-disulfide interchange reactions. The encoded
+    protein has an N-terminal ER-signal sequence, a catalytically active
+    thioredoxin domain, and a C-terminal ER-retention sequence. This
+    protein plays a role in cell migration, cellular transformation and
+    metastasis and is as a p53 inhibitor. As an ER-localized molecular
+    chaperone, it plays a role in the folding, trafficking, and assembly
+    of cysteine-rich transmembrane receptors and the cysteine-rich
+    intestinal gylcoprotein mucin. This gene has been implicated in
+    inflammatory bowel disease and cancer progression. The expression of
+    this gene various between samples: **PO2, PO13, PO35, PO40, PO40_2
+    and PO45** are intense and spread while the rest are much fewer.
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene_scale_data/image_spatgene_AGR2_33.png)
+
+-   AGR3
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene_scale_data/image_spatgene_AGR3_55.png)
+
+-   CCL2, Chemokines are a superfamily of secreted proteins involved in
+    immunoregulatory and inflammatory processes. Very interesting
+    expression in the FTE ares in some patients: **PO2, PO6, PO7_2,
+    PO13, PO20a, PO40 and PO40_2.**
+
+    ![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_CCL2.png)
+
+-   IGKC, expressed by B lymphocytes. Immune response. Prognostic marker
+    in renal cancer (unfavorable), head and neck cancer (favorable) and
+    breast cancer (favorable). There are some strong expression in some
+    of the samples especially **PO7_2** (maybe under menstruation?).
+
+    ![](gitHub/Data/STU/Spatgenes/image_by_gene/top100_spat_gene/image_spatgene_IGKC_25.png)
+
+Overall, for those 10 spatially highly differential expressed (or
+variable) genes, we can categorize them in the 3 groups:
+
+**FTE markers: OVGP1, SLPI, CRISP3, AGR2/3\*, CCL21\***
+
+other FTE enrich markers: TPPP3, SPINT2, SNTN, RSPH1, PIFO, MUC1, MSLN,
+KRT18, FAM183A, EZR, EPCAM, CFAP157
+
+CDHR3, CD24, CCDC17, CAPS\*, C20orf85, C11orf88, C9orf24, C5orf49,
+C1orf194, WFDC2, TXN
+
+**Stromal markers: TAGLN, MYL9, FLNA, DES\*, ACTG2\***
+
+**Immune markers: IGKC**
+
+*\*genes with star might be markers for subtype*
+
+```{r immune cell markers}
+data <- readRDS("~/VisiumST/gitHub/Data/STU/STU.sct.merged.rds")
+data <- LoadImages(data, time.resolve = T, xdim = 1500)
+DefaultAssay(data) <- "SCT"
+
+png(file = paste(data.dir, "/STU/Spatgenes/Immune/", "Bcell.png", sep = ""), width = 8500, height = 7000, res = 500) 
+print(
+  ST.FeaturePlot(data, features = c("MS4A1", "CD19", "CD79A"), blend = T, pt.size = 1, ncols = 5, dark.theme = T)
+)
+dev.off()
+
+```
+
+##### 2. Genes spatially differ between fimbrial and proximal:
+
+```{r compare unique genes of fimbrial and proximal}
+dir.create(paste(data.dir, "STU", "Spatgenes", "fimbrial_proximal", sep = "/"), recursive = T)
+
+sampleID <- "PO20"
+files <- list.files(path = paste0(data.dir, "/STU/Spatgenes/spat_corr_list/unique/"), pattern = paste0(sampleID, ".+.csv$"))
+
+my_data <- list()
+for (i in seq_along(files)) {
+    my_data[[i]] <- read_csv(file = paste(data.dir, "STU/Spatgenes/spat_corr_list/unique", files[i], sep = "/"))
+}
+
+my_merge <- function(df1, df2){                                
+  merge(df1, df2, by = "gene")
+}
+unique.common <- Reduce(my_merge, my_data) 
+colnames(unique.common) <- c("gene", "proxiaml", "fimbrial", "otherside")
+unique.common$average <-rowMeans(unique.common[2:4])
+unique.common$std1 <- rowSds(as.matrix(unique.common[2:3]))          
+unique.common$std2 <- rowSds(as.matrix(unique.common[3:4])) 
+unique.common$std3 <- rowSds(as.matrix(unique.common[2:4])) 
+unique.common <- unique.common[which(unique.common$fimbrial>=0.5),]
+unique.common <- unique.common[order(-unique.common$std2),] # order by stdev
+
+## manually select genes to show
+top.diff.features<-unique.common$gene[21:30]
+
+my.top.diff.features <- c("CFD","HMCN2","SLC2A3","ID3","BTG2","CCL2","CEBPD","CXCL2","RGS5", "SOCS3", "CXCL2", "ELF3", "GSN", "LUM", "SCGB1D4", "IER2", "IGFBP2", "DUSP1", "NR4A1", "ZFP36")
+for (ftr in my.top.diff.features) {
+png(file = paste(data.dir, "/STU/Spatgenes/fimbrial_proximal/", "image_spatgenes_unique.common.top.diff_", ftr, ".png", sep = ""), width = 7000, height = 4000, res = 300) 
+  print(
+    FeatureOverlay(data, features = ftr, 
+              cols = cscale,
+              sampleids = c(1,2,4,5,9,7:11,15,16),
+              pt.size = 1.5, 
+              add.alpha = T,
+              ncol = 5,
+              label.by = "library_id")
+  )  
+  dev.off()
+}
+```
+
+Here are some handpick markers that might be different between fimbrial
+and proximal
+
+**"CFD","HMCN2","SLC2A3","ID3","BTG2","CCL2","CEBPD","CXCL2","RGS5",
+"SOCS3", "CXCL2", "ELF3", "GSN", "LUM", "SCGB1D4", "IER2", "IGFBP2",
+"DUSP1", "NR4A1", "ZFP36"**
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=BTG2&keywords=BTG2>
+    Gene Ontology (GO) annotations related to this gene include
+    *DNA-binding transcription activator activity, RNA polymerase
+    II-specific*. Anti-proliferative protein. This encoded protein is
+    involved in the regulation of the G1/S transition of the cell cycle.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_BTG2.png)
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=CEBPD&keywords=CEBPD>
+
+    The protein encoded by this intronless gene is a bZIP transcription
+    factor which can bind as a homodimer to certain DNA regulatory
+    regions.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_CEBPD.png)
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=CCL2&keywords=CCL2>
+
+    Gene Ontology (GO) annotations related to this gene include *protein
+    kinase activity* and *heparin binding*.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_CCL2.png)
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=CXCL2&keywords=CXCL2>
+
+    Produced by activated monocytes and neutrophils and expressed at
+    sites of inflammation.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_CXCL2.png)
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=DUSP1&keywords=DUSP1>
+
+    This protein appears to play an important role in the human cellular
+    response to environmental stress as well as in the negative
+    regulation of cellular proliferation. Finally, the encoded protein
+    can make some solid tumors resistant to both chemotherapy and
+    radiotherapy, making it a target for cancer therapy.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_DUSP1.png)
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=ZFP36&keywords=ZFP36>
+
+    Plays a role as a tumor suppressor by inhibiting cell proliferation
+    in breast cancer cells. LOT OF STUDIES OF THIS GENE.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_ZFP36.png)
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=CFD&keywords=CFD>
+    Gene Ontology (GO) annotations related to this gene include
+    *serine-type endopeptidase activity* and *serine-type peptidase
+    activity*.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_CFD.png)
+
+-   <https://www.genecards.org/cgi-bin/carddisp.pl?gene=RGS5&keywords=RGS5>
+
+    Gene Ontology (GO) annotations related to this gene include *GTPase
+    activator activity*.
+
+![](gitHub/Data/STU/Spatgenes/fimbrial_proximal/image_spatgenes_unique.common.top.diff_RGS5.png)
+
+#### 
+
+We will compare our data to this scRNA dataset and to see if there is
+any shift in our BRCA1/2 mutated samples later on.
