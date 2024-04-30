@@ -59,6 +59,7 @@ for (p in c(1,3,6,10)) {
                                ident.2 = id2,
                                min.pct = -Inf,
                                min.diff.pct = -Inf,
+                               logfc.threshold = -Inf,
                                test.use = "MAST",
                                recorrect_umi = F) %>% 
         rownames_to_column() %>% 
