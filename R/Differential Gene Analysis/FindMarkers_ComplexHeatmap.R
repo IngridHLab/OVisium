@@ -15,15 +15,10 @@ source(paste(home, "OVisium/manuscript/gitHub/DoMultiBarHeatmap.R", sep = "/"))
 file.name <- "OVisium_SCT_merged" 
 cluster.ident <- "harmony_SCT_res_0.6"
 setwd(rds.dir)
-#' load("Variable_features_filt_SCT_harmony_data.RData")
 load("Variable_features_filt_SCT_log2counts+1_harmony.RData")
-#' load("Variable_features_filt_SCT_log1pcounts_harmony.RData")
 
 
 #' prepare the data slot for DEA using FindMarkers
-#' data.sub@assays[["SCT"]]@data <- Matrix(log1p(2^(as.matrix(data.sub@assays[["SCT"]]@data))-1), sparse = T)
-#' data.sub <- ScaleData(data.sub, assay = "SCT")
-#' for scale.data analysis, no filtering will be applied on the log2FC
 data.sub.filt@assays[["SCT"]]@scale.data <- as.matrix(data.sub.filt@assays[["SCT"]]@data)
 data.sub.filt <- ScaleData(data.sub.filt)
 
