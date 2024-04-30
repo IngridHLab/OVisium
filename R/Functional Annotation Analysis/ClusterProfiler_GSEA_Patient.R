@@ -212,7 +212,7 @@ for (i in seq_along(feature.ident)) {
                          markers.list.dir,
                          sep = "/")
       
-      deg.files <- list.files(path = input.dir, pattern = "*rds")
+      deg.files <- list.files(path = input.dir, pattern = "*DEA.list.rds")
     
     for (x in seq_along(anno.files)) {
       for (y in seq_along(deg.files)) {
