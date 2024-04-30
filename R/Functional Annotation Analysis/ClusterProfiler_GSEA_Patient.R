@@ -228,10 +228,3 @@ for (i in seq_along(feature.ident)) {
     }
       }
 }
-p<-2
-png(file = paste0("Patient", p, "_GSEA_dotplot.png"), 
-    width = 1000, height = 1200, res = 150)
-print(
-dotplot(c5.go.v2023.2_Patients.DEA_result[[p]])
-)
-dev.off()
