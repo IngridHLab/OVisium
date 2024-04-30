@@ -11,15 +11,10 @@ source(paste(home, "OVisium/manuscript/gitHub/17_geneAnnotations.R", sep = "/"))
 file.name <- "OVisium_SCT_merged" 
 cluster.ident <- "harmony_SCT_res_0.6"
 setwd(rds.dir)
-#' load("Variable_features_filt_SCT_harmony_data.RData")
 load("Variable_features_filt_SCT_log2counts+1_harmony.RData")
-#' load("Variable_features_filt_SCT_log1pcounts_harmony.RData")
 
 
 #' prepare the data slot for DEA using FindMarkers
-#' data.sub@assays[["SCT"]]@data <- Matrix(log1p(2^(as.matrix(data.sub@assays[["SCT"]]@data))-1), sparse = T)
-#' data.sub <- ScaleData(data.sub, assay = "SCT")
-#' for scale.data analysis, no filtering will be applied on the log2FC
 data.sub.filt@assays[["SCT"]]@scale.data <- as.matrix(data.sub.filt@assays[["SCT"]]@data)
 data.sub.filt <- ScaleData(data.sub.filt)
 
@@ -51,7 +46,7 @@ for (p in c(1,3,6,10)) {
   
       
   #' Find all markers between fimbrial vs proximal in PCA-Harmony
-  #' log2FC threshold default 0.1
+  #' for scale.data analysis, no filtering will be applied on the log2FC
       Idents(pat.data) <- "Tissue_origin"
       f.markers <- FindMarkers(pat.data, 
                                assay = "SCT",
@@ -61,7 +56,6 @@ for (p in c(1,3,6,10)) {
                                ident.1 = id1, 
                                ident.2 = id2,
                                min.pct = -Inf,
-                               logfc.threshold = -Inf,
                                min.diff.pct = -Inf,
                                test.use = "MAST",
                                recorrect_umi = F) %>% 
@@ -72,7 +66,8 @@ for (p in c(1,3,6,10)) {
                id2 = id2,
                patient = patient) %>%
         dplyr::relocate(patient, id1, id2, .after = gene) 
-        
+
+  #' Select top markers
         f.markers.top <- f.markers %>% 
           dplyr::filter(avg_log2FC >= log2(1.5) | avg_log2FC <= log2(0.75)) %>% 
           dplyr::group_by(patient) %>%
