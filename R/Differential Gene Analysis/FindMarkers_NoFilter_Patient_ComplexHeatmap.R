@@ -30,7 +30,8 @@ id2 = "Proximal"
 data <- data.sub.filt
 features <- vfeatures.filt
 
-#' patient no. 4 developed HGSC 6 years after the salpingectomy
+#' patient no.4 developed HGSC 6 years after the salpingectomy but we only have 
+#' fimbrial from this patient
 for (p in c(1,3,6,10)) {
   Idents(data) <- "patient"
   pat.data <- SubsetSTData(data, idents = p)
@@ -46,7 +47,8 @@ for (p in c(1,3,6,10)) {
   
       
   #' Find all markers between fimbrial vs proximal in PCA-Harmony
-  #' for scale.data analysis, no filtering will be applied on the log2FC
+  #' logfc.threshold default 0.1
+  #' however, for scale.data analysis, no filtering will be applied on the logfc
       Idents(pat.data) <- "Tissue_origin"
       f.markers <- FindMarkers(pat.data, 
                                assay = "SCT",
@@ -66,8 +68,7 @@ for (p in c(1,3,6,10)) {
                id2 = id2,
                patient = patient) %>%
         dplyr::relocate(patient, id1, id2, .after = gene) 
-
-  #' Select top markers
+        
         f.markers.top <- f.markers %>% 
           dplyr::filter(avg_log2FC >= log2(1.5) | avg_log2FC <= log2(0.75)) %>% 
           dplyr::group_by(patient) %>%
@@ -79,53 +80,43 @@ for (p in c(1,3,6,10)) {
                                  sep = "_"),
                     sep =",", quote = F, row.names = F, col.names = T)
         write.table(f.markers.top, 
-                    file = paste(patient, p, "fimbrial_vs_proximal.top.csv", 
+                    file = paste(patient, "fimbrial_vs_proximal.top.csv", 
                                  sep = "_"),
                     sep =",", quote = F, row.names = F, col.names = T)
   
         #' plot de gene using volcano plot
          de[[paste("Pat", p, sep = " ")]] <- f.markers
-
-        
-        for (n in seq_along(names(de))) {
-          #' enhancevolcano package 
-          #' https://github.com/kevinblighe/EnhancedVolcano
-            if ( n != 2 ) {
-              png(file = paste0(patient, "_volcano_", n, ".png"), 
-                  width = 3500, height = 3500, res = 400)
-            } else {
-              png(file = paste0(patient, "_volcano_", n, ".png"), 
-                  width = 8000, height = 8000, res = 500)
-            }
-            
-            print(
-              EnhancedVolcano(de[[n]],
-                              lab = de[[n]]$gene,
-                              x = 'avg_log2FC',
-                              y = 'p_val_adj',
-                              title = patient,
-                              subtitle = names(de[n]),
-                              pCutoff = 0.01,
-                              FCcutoff = log2(1.5),                              
-                              pointSize = 3.0,
-                              labSize = 6.0,
-                              legendLabels=c('Not sig.',
-                                             'avg_Log2(FC)',
-                                             'p_adj_val',
-                                             'p_adj_val & avg_Log2(FC)')) +
-                labs(x = "avg_Log2(Fold Change)", y = "-log10 (Adjust P_value)") +
-                facet_wrap(. ~ id1, ncol = 3)
-              )
-            dev.off()
-        }
-        
         #' save top de for violin plot later across all patients
         de.top[[paste("Pat", p, sep = " ")]] <- f.markers.top
-        
-        
-        
     }
 
+#' Plot volcano plot
+for (n in seq_along(names(de))) {
+  #' enhancevolcano package 
+  #' https://github.com/kevinblighe/EnhancedVolcano
+  
+  png(file = paste0(names(de[n]), "_volcano.png"), 
+        width = 3500, height = 3500, res = 400)
+  print(
+    EnhancedVolcano(de[[n]],
+                    lab = de[[n]]$gene,
+                    x = 'avg_log2FC',
+                    y = 'p_val_adj',
+                    title =  names(de[n]),
+                    subtitle = "Fimbrial vs Proximal",
+                    pCutoff = 10E-5,
+                    FCcutoff = log2(1.5),                              
+                    pointSize = 3.0,
+                    labSize = 6.0,
+                    legendLabels=c('Not sig.',
+                                   'avg_Log2(FC)',
+                                   'p_adj_val',
+                                   'p_adj_val & avg_Log2(FC)')) +
+      labs(x = "avg_Log2(Fold Change)", y = "-log10 (Adjust P_value)") +
+      facet_wrap(. ~ id1, ncol = 3)
+  )
+  dev.off()
+}
 
 saveRDS(de, file="Patients.DEA.list.rds")
 saveRDS(de.top, file="Patients.DEA.top.list.rds")
