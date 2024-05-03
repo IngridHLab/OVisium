@@ -151,8 +151,8 @@ for (i in 1:length(markers_list)) {
                       col = anno.col)
   
   set.seed(1220)
-  png(file = paste("Bulk_sample_slide/cHeatmap", names(markers_list[i]), 
-                   "findmarkers_samplebyslide.png", sep = "_"), 
+  png(file = paste("./Combined_filtered_markers_v1/csv/AverageExpression", names(markers_list[i]), 
+                   "top20_samplebyslide.png", sep = "_"), 
       width = 6000 , height = 10000, res = 400) 
   p <-Heatmap(all.pat.data.bulk.3.m, 
               name = "Expression", 
@@ -197,7 +197,7 @@ for (i in 1:length(markers_list)) {
                       col = anno.col)
   
   set.seed(1220)
-  png(file = paste(""./Combined_filtered_markers_v1/csv/AverageExpression", names(markers_list[i]), 
+  png(file = paste("./Combined_filtered_markers_v1/csv/AverageExpression", names(markers_list[i]), 
                    "top20_samplebyseqrun.png", sep = "_"), 
       width = 6000 , height = 10000, res = 400) 
   p <-Heatmap(all.pat.data.bulk.4.m, 
@@ -238,7 +238,7 @@ for (i in 1:length(markers_list)) {
                       col = anno.col)
   
   set.seed(1220)
-  png(file = paste(""./Combined_filtered_markers_v1/csv/AverageExpression", names(markers_list[i]), 
+  png(file = paste("./Combined_filtered_markers_v1/csv/AverageExpression", names(markers_list[i]), 
                    "top20_byslide.png", sep = "_"), 
       width = 6000 , height = 10000, res = 400) 
   p <-Heatmap(all.pat.data.bulk.5.m, 
