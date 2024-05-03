@@ -10,7 +10,7 @@ cluster.ident <- "harmony_SCT_res_0.6"
 #' Normalized by median UMI counts or seuqncing depth
 data.deg <- readRDS(paste(rds.dir, paste0(file.name, "_deg.rds"), sep = "/"))
 #' Batch corrected by HarmonyMatrix
-load("Variable_features_filt_SCT_log2counts+1_harmony.RData")
+load(paste0(rds.dir, "/Variable_features_filt_SCT_log2counts+1_harmony.RData"))
 
 #' Choose the data file 
 data <- dat.deg  #' data <- data.sub.filt
