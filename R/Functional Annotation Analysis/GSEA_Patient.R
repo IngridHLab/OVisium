@@ -200,7 +200,7 @@ feature.ident <- c("Variable_features_filt")
 #' Different list based on the filtering
 #' Test methods to identify DE genes
 test.ident <- c("MAST")
-markers.list.dir <- "FindMarkers/Patient_Pair_core"
+markers.list.dir <- "FindMarkers/Patient_Pair"
 
 for (i in seq_along(feature.ident)) {
   for (t in seq_along(test.ident)) {
