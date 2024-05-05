@@ -199,7 +199,7 @@ feature.ident <- c("Variable_features_filt")
 #' Different list based on the filtering
 #' Test methods to identify DE genes
 test.ident <- c("MAST")
-markers.list.dir <- "FindMarkers/Combined_filtered_markers_core/rds"
+markers.list.dir <- "FindMarkers/Combined_filtered_markers_v1/rds"
 
 for (i in seq_along(feature.ident)) {
   for (t in seq_along(test.ident)) {
