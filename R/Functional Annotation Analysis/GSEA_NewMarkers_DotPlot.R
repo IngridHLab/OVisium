@@ -129,3 +129,69 @@ DotPlot(data.sub.filt, assay = "SCT",
   ylab("") +
   theme(legend.position = "bottom")
 dev.off()
+
+
+#' Immune cell markers from scRNAseq markers
+feature.list <- list()
+scmark <- 
+  readRDS(paste(gsea.dir, "sCell.markers.2.0_all_result.rds", sep = "/"))
+cluster <- "11_Stroma"
+core <- scmark[[cluster]]@result[["core_enrichment"]] %>% 
+  str_split(., pattern = "/") 
+for (i in 1:length(core)) {
+  gene <- core[[i]] %>% data.frame() %>% dplyr::rename("ENTREZID"=1) %>% 
+    inner_join(., features.id) %>% anti_join(., sc.markers, by="SYMBOL")
+  feature.list[[scmark[[cluster]]@result[["ID"]][i]]] <- as.character(gene$SYMBOL)
+}
+
+feature.list <- feature.list[c("Macrophage", "Monocyte", "Dendritic cell",
+                               "T cell", "Natural killer cell", "B cell")] 
+#' combine T and NK cells
+feature.list[["T/NK cell"]]  <- c(feature.list[["T cell"]], feature.list[["Natural killer cell"]]) 
+
+feature.list <- feature.list[c(1,2,3,7,6)]
+un <- feature.list %>% unlist() 
+unfeature.list <- Map(`[`, feature.list, relist(!duplicated(un), 
+                                                skeleton = feature.list))
+
+#' Dotplot of new markers of merged data by cellmarker
+out.dir <- paste(gsea.dir, "new_markers", sep = "/")
+dir.create(out.dir, recursive = T)
+setwd(out.dir)
+features <- unfeature.list
+png(file = paste0("dotplot_scMark_immune_by_cluster_origin.png"), 
+    width = 7500, height = 3000, res = 400)
+DotPlot(data.sub.filt, assay = "SCT", 
+        features = features, 
+        group.by = "Visium_clusters_rev", 
+        cluster.idents = F, 
+        cols="RdYlBu", 
+        dot.scale = 7,
+        split.by = "Tissue_origin") +
+  theme(axis.text.x=element_text(angle = 45, hjust = 0.9, vjust = 0.8),
+        strip.text.x = element_text(angle = 0, size = 11)) +
+  guides(size=guide_legend(title="Fraction of spots", 
+                           override.aes=list(shape=21, colour="grey", 
+                                             fill="grey"))) +
+  xlab("") + 
+  ylab("") +
+  theme(legend.position = "bottom")
+dev.off()
+
+png(file = paste0("dotplot_scMark_immune_by_cluster.png"), 
+    width = 9000, height = 2800, res = 400)
+DotPlot(data.sub.filt, assay = "SCT", 
+        features = features, 
+        group.by = "Visium_clusters_rev", 
+        cluster.idents = F, 
+        cols="RdYlBu", 
+        dot.scale = 7) + 
+  theme(axis.text.x=element_text(angle = 45, hjust = 0.9, vjust = 0.8),
+        strip.text.x = element_text(angle = 0, size = 15)) +
+  guides(size=guide_legend(title="Fraction of spots", 
+                           override.aes=list(shape=21, colour="grey", 
+                                             fill="grey"))) +
+  xlab("") + 
+  ylab("") +
+  theme(legend.position = "bottom")
+dev.off()
