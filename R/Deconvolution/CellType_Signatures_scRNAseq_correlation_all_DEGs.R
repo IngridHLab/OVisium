@@ -185,18 +185,19 @@ ha <-
                                                   "mature NK T cell",
                                                   "mast cell",
                                                   "macrophage")),
-                    col = list(Cell_Type = cell_col))
+                    col = list(Cell_Type = cell_col),
+                    simple_anno_size = unit(1, "cm"))
 mapal <- colorRampPalette(RColorBrewer::brewer.pal(11,"RdYlBu"))(256)
 
 set.seed(1220)
-png(file = "visium_DEGs_all_hi_corr_sc_heatmap.png", width = 5000, height = 11000, res = 300)
+png(file = "visium_DEGs_all_hi_corr_sc_heatmap.png", width = 5000, height = 9000, res = 300)
 p <-Heatmap(data.bulk.m, 
             name = "Expression", 
             cluster_columns = F,
             show_column_dend = F,
-            show_column_names = T,
+            show_column_names = F,
             cluster_column_slices = TRUE,
-            column_title_gp = gpar(fontsize = 12),
+            column_title_gp = gpar(fontsize = 20),
             column_names_gp = gpar(fontsize = 20),
             column_title = "scRNAseq 12 Major Cell Types",
             col = rev(mapal),
@@ -204,7 +205,7 @@ p <-Heatmap(data.bulk.m,
             cluster_row_slices = F,
             row_names_side = "right",
             show_row_dend = T,
-            row_names_gp = gpar(fontsize = 8),
+            row_names_gp = gpar(fontsize = 6),
             row_title_gp = gpar(fontsize = 12),
             row_title_rot = 0,
             row_title_side = "right",
@@ -213,6 +214,11 @@ p <-Heatmap(data.bulk.m,
             raster_quality = 4)
 p <- draw(p)
 dev.off()
+
+#' Extract row order and plot cell type signatures in Visium data
+hm_row_ord <-row_order(p)
+high_corr_reord <- high_corr$V1[c(hm_row_ord)]
+
 
 #' Average expression in our data
 load(paste0(rds.dir, "/Variable_features_filt_SCT_log2counts+1_harmony.RData"))
@@ -223,7 +229,7 @@ data <- data.sub.filt
 source(paste(home, "OVisium/manuscript/gitHub/ComplexHeatmap_settings.R", sep = "/")) 
 #' Between clusters
 all.pat.data.bulk <- 
-  AverageExpression(data, features = high_corr$V1,
+  AverageExpression(data, features = high_corr_reord,
                     group.by = c("Visium_clusters"),
                     assays = "SCT", return.seurat = T)
 all.pat.data.bulk.m <- as.matrix(GetAssayData(all.pat.data.bulk, 
@@ -236,16 +242,46 @@ all.pat.ha <-
                                                 "5_Stroma", "6_Stroma", "7_Stroma",
                                                 "8_Stroma", "9_Stroma", "10_Stroma",
                                                 "11_Stroma")),
-                    col = anno.col)
+                    col = anno.col,
+                    simple_anno_size = unit(1, "cm"))
 
+#' Original order
 set.seed(1220)
-png(file = "visium_DEGs_all_hi_corr_visium_heatmap_cluster.png", width = 4000, height = 9000, res = 200) 
+png(file = "visium_DEGs_all_hi_corr_visium_heatmap_cluster.png", width =5000, height = 9000, res = 300) 
 p <-Heatmap(all.pat.data.bulk.m, 
+            name = "Expression", 
             cluster_columns = F,
             show_column_dend = F,
-            show_column_names = T,
+            show_column_names = F,
             cluster_column_slices = TRUE,
-            column_title_gp = gpar(fontsize = 12),
+            column_title_gp = gpar(fontsize = 20),
+            column_names_gp = gpar(fontsize = 20),
+            column_title = "OVisium 11 Spatial Clusters",
+            col = rev(mapal),
+            cluster_rows = F,
+            cluster_row_slices = F,
+            row_names_side = "right",
+            show_row_dend = T,
+            row_names_gp = gpar(fontsize = 6),
+            row_title_gp = gpar(fontsize = 12),
+            row_title_rot = 0,
+            row_title_side = "right",
+            top_annotation = all.pat.ha,
+            use_raster = TRUE,
+            raster_quality = 4)
+p <- draw(p)
+dev.off()
+
+#' Pearson clustering
+set.seed(1220)
+png(file = "visium_DEGs_all_hi_corr_visium_heatmap_cluster_pearson.png", width = 5000, height = 9000, res = 300) 
+p <-Heatmap(all.pat.data.bulk.m, 
+            name = "Expression", 
+            cluster_columns = F,
+            show_column_dend = F,
+            show_column_names = F,
+            cluster_column_slices = TRUE,
+            column_title_gp = gpar(fontsize = 20),
             column_names_gp = gpar(fontsize = 20),
             column_title = "OVisium 11 Spatial Clusters",
             col = rev(mapal),
@@ -253,7 +289,7 @@ p <-Heatmap(all.pat.data.bulk.m,
             cluster_row_slices = F,
             row_names_side = "right",
             show_row_dend = T,
-            row_names_gp = gpar(fontsize = 8),
+            row_names_gp = gpar(fontsize = 6),
             row_title_gp = gpar(fontsize = 12),
             row_title_rot = 0,
             row_title_side = "right",
