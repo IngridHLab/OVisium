@@ -32,13 +32,12 @@ celltype.count<-celltype.count %>%summarise_all(sum, na.rm = TRUE)
   celltype.count.list <- list()
   celltype.count.list[["PO40_P"]] <- celltype.count
   saveRDS(celltype.count.list, "CellType_count_list_fimbrial_Proximal.rds")
+
+#' read rds from Deconvolution folder "Spacexr/Version_1_spaceranger"
 my_list_2 <- mapply('[<-', celltype.count.list, "Patient", value = names(celltype.count.list), SIMPLIFY = F)
 cellcount.all <- dplyr::bind_rows(my_list_2) 
 
-#' import percentage data 
-  count <- 
-    readr::read_csv("~/OVisium/Deconvolution_analysis/Spacexr/Version_1_spaceranger/AGG_BRCA_18/Status_celltype_count_table.csv")
-  count$cell_type <- factor(count$cell_type, 
+  cellcount.all$cell_type <- factor(cellcount.all$cell_type, 
                                      levels = c("ciliated epithelial cell",
                                                 "secretory cell",
                                                 "fibroblast",
@@ -51,8 +50,8 @@ cellcount.all <- dplyr::bind_rows(my_list_2)
                                                 "mature NK T cell",
                                                 "mast cell",
                                                 "macrophage"))
-  #'
-  #' plot propotion plot
+
+  #' plot proportion plot
   cell_col <- 
     c("#A6CEE3","#1F78B4","#B8E986", "#7ED321", "#417505", "#FFFF99", "#E31A1C", 
                "#FB9A99", "#CAB2D6", "#6A3D9A", "#FDBF6F", "#B15928")
@@ -85,18 +84,42 @@ png(file = "Total_celltype_count_tissue.png",
 dev.off()
 
 #' boxplot for each cell type to compare fimbrial and proximal
+#' perform pairwise t.test between patient and tissue on each cell type
+#' check homoscedasticity - Are the variances homogenous
+fimbrial <- subset(cellcount.all, Tissue == "Fimbrial")
+proximal <- subset(cellcount.all, Tissue == "Proximal")
+var.test(fimbrial$per, proximal$per) 
+#' p-value = 0.76 they are not heteroscedasticity 
+
+#' combine PO20_F and PO20_F_a
+PO20_F_combined <- rbindlist(celltype.count.list[c("PO20_F", "PO20_F_a")])
+PO20_F_combined %<>%
+  group_by(cell_type, Tissue) %>%
+  summarise(
+    n = n(),
+    mean = mean(V1),
+    sd = sd(V1)
+  ) %>%
+  ungroup()
+
+celltype.count.list[["PO20_F_combined"]] <-  PO20_F_combined[c(1,4,2)] %>% rename_(., "V1" = 2) %>% as.data.frame()
+my_list_3 <- mapply('[<-', celltype.count.list[c(1:4,10,7:9)], "Patient", value = names(celltype.count.list[c(1:4,7:10)]), SIMPLIFY = F)
+cellcount.all <- dplyr::bind_rows(my_list_3) 
+
 cellcount.all %<>% group_by(Patient) %>% mutate(per = prop.table(V1)*100)
+cellcount.all$Patient <- gsub("_.*", "", cellcount.all$Patient)
+
+
 
 png(file = "Total_celltype_count_per_tissue_split.png", 
     width = 6000, height = 5000, res = 500)
 print(
-  ggplot(cellcount.all, aes(x=cell_type, y = per, fill = Tissue)) +
-    geom_boxplot(alpha = 1) + 
-    theme(axis.text = element_text(size=10),
-          axis.text.x = element_blank()) +
-    xlab("Cell Type") + 
-    ylab("Percentage") +
-    ggtitle("4 BRCA1 Patients") +
+  ggboxplot(cellcount.all, x="Tissue", y = "per", fill = "cell_type", 
+            palette = cell_col) +
+    stat_compare_means(paired = T) +
+    stat_compare_means( aes(label = ..p.signif..), 
+                        label.x = 1.5, label.y = 40) +
+    geom_line(aes(group = Patient)) +
     facet_wrap(~cell_type, scales = "free")
 )
 dev.off()
@@ -104,13 +127,12 @@ dev.off()
 png(file = "Total_celltype_count_tissue_split.png", 
     width = 6000, height = 5000, res = 500)
 print(
-  ggplot(cellcount.all, aes(x=cell_type, y = V1, fill = Tissue)) +
-    geom_boxplot(alpha = 1) + 
-    theme(axis.text = element_text(size=10),
-          axis.text.x = element_blank()) +
-    xlab("Cell Type") + 
-    ylab("Count") +
-    ggtitle("4 BRCA1 Patients") +
+  ggboxplot(cellcount.all, x="Tissue", y = "V1", fill = "cell_type", 
+            palette = cell_col) +
+    stat_compare_means(paired = T) +
+    stat_compare_means( aes(label = ..p.signif..), 
+                        label.x = 1.5, label.y = 40) +
+    geom_line(aes(group = Patient)) +
     facet_wrap(~cell_type, scales = "free")
 )
 dev.off()
