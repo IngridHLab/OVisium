@@ -5,10 +5,10 @@ source(paste(home, "OVisium/manuscript/gitHub/2_directory.R", sep = "/"))
 
 #' choose the sample 
 #' set working directory to their spacexr output folder
-# setwd()
-count_cell_type_clusters_table <- readr::read_csv("count_cell_type_clusters_table.csv")
 
-             
+sample.name <- "POxx_x"
+setwd(/home/minerva/OVisium/Deconvolution_analysis/Spacexr/Version_1_spaceranger/sample.name)
+count_cell_type_clusters_table <- readr::read_csv("count_cell_type_clusters_table.csv")         
 celltype.count<-count_cell_type_clusters_table %>% column_to_rownames("cluster")
 library(tidyverse)  
 celltype.count<-celltype.count %>%summarise_all(sum, na.rm = TRUE)
@@ -30,7 +30,7 @@ celltype.count<-celltype.count %>%summarise_all(sum, na.rm = TRUE)
                                                 "macrophage"))
   
   celltype.count.list <- list()
-  celltype.count.list[["PO40_P"]] <- celltype.count
+  celltype.count.list[[sample.name]] <- celltype.count
   saveRDS(celltype.count.list, "CellType_count_list_fimbrial_Proximal.rds")
 
 #' read rds from Deconvolution folder "Spacexr/Version_1_spaceranger"
