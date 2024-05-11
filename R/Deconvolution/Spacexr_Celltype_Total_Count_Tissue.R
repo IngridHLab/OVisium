@@ -79,7 +79,7 @@ png(file = "Total_celltype_count_tissue.png",
           axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
     xlab("Status") + 
     ylab("Percentage") +
-    ggtitle("4 BRCA1 Patient") 
+    ggtitle("4 BRCA1 Patients") 
  )
 dev.off()
 
