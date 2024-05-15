@@ -85,7 +85,7 @@ for (p in c(1,3,6,10)) {
                                  sep = "_"),
                     sep =",", quote = F, row.names = F, col.names = T)
         write.table(f.markers.top, 
-                    file = paste(patient, p, "fimbrial_vs_proximal.top.csv", 
+                    file = paste(patient, "fimbrial_vs_proximal.top.csv", 
                                  sep = "_"),
                     sep =",", quote = F, row.names = F, col.names = T)
   
