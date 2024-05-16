@@ -267,4 +267,3 @@ p <-Heatmap(paried.pat.data.bulk.m,
             raster_quality = 4)
 p <- draw(p)
 dev.off()
-
