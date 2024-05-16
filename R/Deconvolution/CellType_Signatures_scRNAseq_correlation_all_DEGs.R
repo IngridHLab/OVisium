@@ -49,25 +49,7 @@ Idents(healthy.tubes) <- factor(Idents(healthy.tubes),
 #' load out DEG data
 setwd(deg.dir)
 features.id <- readRDS("features_EntrezID.rds")
-file.name <- "OVisium_SCT_merged"
-cluster.ident <- "harmony_SCT_res_0.6"
-feature.ident <- c("Variable_features_filt")
-#' Other features : 
-#' "Variable_a500UMI_features","Scaled_features","Scaled_a500UMI_features","All_features"
-#' Different list based on the filtering
-#' Test methods to identify DE genes
-test.ident <- c("MAST")
-markers.list.dir <- "FindMarkers/Combined_filtered_markers_v1/rds/Correlation"
-
-input.dir <- paste(deg.dir, 
-                   file.name, 
-                   cluster.ident, 
-                   feature.ident, 
-                   test.ident,
-                   markers.list.dir,
-                   sep = "/")
-
-setwd(input.dir)
+setwd("~/OVisium/Deconvolution_analysis/Correlation/All_DEGs")
 deg.file <- list.files(pattern = "*all.list.rds")
 name <- gsub(".list.*", "", deg.file)
 markers.list <- readRDS(deg.file) 
@@ -217,7 +199,23 @@ dev.off()
 
 #' Extract row order and plot cell type signatures in Visium data
 hm_row_ord <-row_order(p)
-high_corr_reord <- high_corr$V1[c(hm_row_ord)]
+high_corr_reord <- high_corr$V1[c(hm_row_ord)]%>%as.data.frame()
+colnames(high_corr_reord) <- "gene"
+high_corr_reord$cell_type <- ""
+high_corr_reord$cell_type[c(1:96)]<-"endothelial cell" 
+high_corr_reord$cell_type[c(97:245)]<-"Stromal cell" 
+high_corr_reord$cell_type[c(246:405)]<-"ciliated epithelial cell" 
+high_corr_reord$cell_type[c(406:475)]<-"secretory cell" 
+high_corr_reord$cell_type[c(476:551)]<-"immune cell" 
+high_corr_reord$cell_type <- factor(high_corr_reord$cell_type, 
+                                    levels = c("ciliated epithelial cell",
+                                               "secretory cell" ,
+                                               "Stromal cell",
+                                               "endothelial cell",
+                                               "immune cell" ))
+write.table(high_corr_reord, 
+            file = "Celltype_signatures.csv", 
+            sep =",", quote = F, row.names = F, col.names = T)
 
 
 #' Average expression in our data
@@ -229,7 +227,7 @@ data <- data.sub.filt
 source(paste(home, "OVisium/manuscript/gitHub/ComplexHeatmap_settings.R", sep = "/")) 
 #' Between clusters
 all.pat.data.bulk <- 
-  AverageExpression(data, features = high_corr_reord,
+  AverageExpression(data, features = high_corr_reord$gene,
                     group.by = c("Visium_clusters"),
                     assays = "SCT", return.seurat = T)
 all.pat.data.bulk.m <- as.matrix(GetAssayData(all.pat.data.bulk, 
@@ -247,7 +245,7 @@ all.pat.ha <-
 
 #' Original order
 set.seed(1220)
-png(file = "visium_DEGs_all_hi_corr_visium_heatmap_cluster.png", width =5000, height = 9000, res = 300) 
+png(file = "visium_DEGs_all_hi_corr_visium_heatmap.png", width =5000, height = 9000, res = 300) 
 p <-Heatmap(all.pat.data.bulk.m, 
             name = "Expression", 
             cluster_columns = F,
@@ -259,13 +257,13 @@ p <-Heatmap(all.pat.data.bulk.m,
             column_title = "OVisium 11 Spatial Clusters",
             col = rev(mapal),
             cluster_rows = F,
-            cluster_row_slices = F,
             row_names_side = "right",
             show_row_dend = T,
             row_names_gp = gpar(fontsize = 6),
-            row_title_gp = gpar(fontsize = 12),
+            row_title_gp = gpar(fontsize = 20),
             row_title_rot = 0,
             row_title_side = "right",
+            row_split = high_corr_reord$cell_type,
             top_annotation = all.pat.ha,
             use_raster = TRUE,
             raster_quality = 4)
