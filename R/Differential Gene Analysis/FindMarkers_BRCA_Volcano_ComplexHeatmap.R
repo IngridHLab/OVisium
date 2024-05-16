@@ -73,8 +73,8 @@ features <- vfeatures.filt
                    by = c("gene" = "gene_name"))
        
        markers.top <- markers %>% 
-         dplyr::filter(avg_log2FC >= log2(1.5) | avg_log2FC <= log2(0.75)) %>%
-         dplyr::slice_max(order_by = rank, n = 20)
+         dplyr::filter(abs(avg_log2FC) >= 0.25) %>%
+         dplyr::slice_max(order_by = abs(rank), n = 20)
        markers.top <- markers.top[order(-markers.top$avg_log2FC),] %>%
          left_join(. , y = unique(annotations[, c("gene_name", "description")]), 
                    by = c("gene" = "gene_name"))
@@ -250,7 +250,7 @@ p <-Heatmap(mat,
             cluster_rows = F,
             row_names_side = "left",
             show_row_dend = F,
-            row_names_gp = gpar(fontsize = 15),
+            row_names_gp = gpar(fontsize = 18),
             row_title_gp = gpar(fontsize = 12),
             row_title_rot = 0,
             row_title_side = "right",
@@ -278,7 +278,7 @@ mutation.ha <-
                     col = anno.col)
 
 set.seed(1220)
-png(file = "BRCA1_vs_BRCA2_top20_mutation_variant_bulk.png", width = 4000, height = 7000, res = 400) 
+png(file = "BRCA1_vs_BRCA2_141_mutation_variant_bulk.png", width = 4000, height = 7000, res = 400) 
 p <-Heatmap(mutation.data.bulk.m, 
             name = "Expression", 
             cluster_columns = T,
@@ -304,7 +304,6 @@ p <- draw(p)
 dev.off()
 
 #' bulk with BRCA status and patient
- 
 mutation.data.bulk <- 
   AverageExpression(data.sub.filt, 
                     features = markers$gene,
@@ -319,7 +318,7 @@ mutation.ha <-
                     col = anno.col)
 
 set.seed(1220)
-png(file = "BRCA1_vs_BRCA2_top20_mutation_patient_bulk.png", width = 4000, height = 7000, res = 400) 
+png(file = "BRCA1_vs_BRCA2_141_mutation_patient_bulk.png", width = 4000, height = 7000, res = 400) 
 p <-Heatmap(mutation.data.bulk.m, 
             name = "Expression", 
             cluster_columns = T,
