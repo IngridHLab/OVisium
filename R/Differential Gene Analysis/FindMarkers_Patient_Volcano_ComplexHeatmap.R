@@ -77,7 +77,7 @@ for (p in c(1,3,6,10)) {
                   by = c("gene" = "gene_name"))
         
         p.markers.top <- p.markers %>% 
-          dplyr::filter(avg_log2FC >= log2(1.5) | avg_log2FC <= log2(0.75)) %>% 
+          dplyr::filter(abs(avg_log2FC) >= 0.25) %>% 
           dplyr::group_by(patient) %>%
           dplyr::slice_max(order_by = abs(rank), n = 20)
         
@@ -267,3 +267,4 @@ p <-Heatmap(paried.pat.data.bulk.m,
             raster_quality = 4)
 p <- draw(p)
 dev.off()
+
