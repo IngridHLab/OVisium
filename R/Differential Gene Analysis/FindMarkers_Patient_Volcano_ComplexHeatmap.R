@@ -53,7 +53,7 @@ for (p in c(1,3,6,10)) {
   #' Find all markers between fimbrial vs proximal in PCA-Harmony
   #' log2FC threshold default 0.1
       Idents(pat.data) <- "Tissue_origin"
-      f.markers <- FindMarkers(pat.data, 
+      p.markers <- FindMarkers(pat.data, 
                                assay = "SCT",
                                slot = "scale.data",
                                fc.name = "avg_log2FC",
@@ -72,66 +72,61 @@ for (p in c(1,3,6,10)) {
                id2 = id2,
                patient = patient) %>% 
         dplyr::filter(abs(rank) > -log10(10E-5)*-Inf) %>%
-        dplyr::relocate(patient, id1, id2, .after = gene) 
+        dplyr::relocate(patient, id1, id2, .after = gene) %>%
+        left_join(. , y = unique(annotations[, c("gene_name", "description")]), 
+                  by = c("gene" = "gene_name"))
         
-        f.markers.top <- f.markers %>% 
+        p.markers.top <- p.markers %>% 
           dplyr::filter(avg_log2FC >= log2(1.5) | avg_log2FC <= log2(0.75)) %>% 
           dplyr::group_by(patient) %>%
           dplyr::slice_max(order_by = abs(rank), n = 20)
         
       
-        write.table(f.markers, 
+        write.table(p.markers, 
                     file = paste(patient, "fimbrial_vs_proximal.csv", 
                                  sep = "_"),
                     sep =",", quote = F, row.names = F, col.names = T)
-        write.table(f.markers.top, 
-                    file = paste(patient, "fimbrial_vs_proximal.top.csv", 
+        write.table(p.markers.top, 
+                    file = paste(patient, "fimbrial_vs_proximal.top20.csv", 
                                  sep = "_"),
                     sep =",", quote = F, row.names = F, col.names = T)
   
         #' plot de gene using volcano plot
-         de[[paste("Pat", p, sep = " ")]] <- f.markers
+         de[[paste("Pat", p, sep = " ")]] <- p.markers
 
-        
-        for (n in seq_along(names(de))) {
-          #' enhancevolcano package 
-          #' https://github.com/kevinblighe/EnhancedVolcano
-            if ( n != 2 ) {
-              png(file = paste0(patient, "_volcano_", n, ".png"), 
-                  width = 3500, height = 3500, res = 400)
-            } else {
-              png(file = paste0(patient, "_volcano_", n, ".png"), 
-                  width = 8000, height = 8000, res = 500)
-            }
-            
-            print(
-              EnhancedVolcano(de[[n]],
-                              lab = de[[n]]$gene,
-                              x = 'avg_log2FC',
-                              y = 'p_val_adj',
-                              title = patient,
-                              subtitle = names(de[n]),
-                              pCutoff = 0.01,
-                              FCcutoff = log2(1.5),                              
-                              pointSize = 3.0,
-                              labSize = 6.0,
-                              legendLabels=c('Not sig.',
-                                             'avg_Log2(FC)',
-                                             'p_adj_val',
-                                             'p_adj_val & avg_Log2(FC)')) +
-                labs(x = "avg_Log2(Fold Change)", y = "-log10 (Adjust P_value)") +
-                facet_wrap(. ~ id1, ncol = 3)
-              )
-            dev.off()
-        }
-        
-        #' save top de for violin plot later across all patients
-        de.top[[paste("Pat", p, sep = " ")]] <- f.markers.top
-        
-        
-        
-    }
-
+         #' save top de for violin plot later across all patients
+         de.top[[paste("Pat", p, sep = " ")]] <- p.markers.top
+         
+}
+         
+#' Plot volcano plot
+for (n in seq_along(names(de))) {
+           #' enhancevolcano package 
+           #' https://github.com/kevinblighe/EnhancedVolcano
+           
+           png(file = paste0(names(de[n]), "_volcano.png"), 
+               width = 3500, height = 3500, res = 400)
+           print(
+             EnhancedVolcano(de[[n]],
+                             lab = de[[n]]$gene,
+                             x = 'avg_log2FC',
+                             y = 'p_val_adj',
+                             title =  names(de[n]),
+                             subtitle = "Fimbrial vs Proximal",
+                             pCutoff = 10E-5,
+                             FCcutoff = log2(1.5),                              
+                             pointSize = 3.0,
+                             labSize = 6.0,
+                             legendLabels=c('Not sig.',
+                                            'avg_Log2(FC)',
+                                            'p_adj_val',
+                                            'p_adj_val & avg_Log2(FC)')) +
+               labs(x = "avg_Log2(Fold Change)", y = "-log10 (Adjust P_value)") +
+               facet_wrap(. ~ id1, ncol = 3)
+           )
+           dev.off()
+         }        
+      
 out.dir <- paste(deg.dir, file.name, cluster.ident, 
                  "Variable_features_filt", sep = "/") 
 saveRDS(de, file="Patients.DEA.list.rds")
@@ -251,6 +246,8 @@ png(file = paste("Paired_Cases_cHeatmap", nrow(paried.pat.data.bulk.m),
 p <-Heatmap(paried.pat.data.bulk.m, 
             name = "Expression", 
             cluster_columns = T,
+            clustering_distance_columns = "euclidean",
+            clustering_method_columns = "average",
             show_column_dend = T,
             show_column_names = T,
             cluster_column_slices = TRUE,
