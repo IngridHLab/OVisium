@@ -25,10 +25,10 @@ load("Variable_features_filt_SCT_log2counts+1_harmony.RData")
 #' data.sub <- ScaleData(data.sub, assay = "SCT")
 #' for scale.data analysis, no filtering will be applied on the log2FC
 Idents(data.sub.filt) <- "Visium_clusters"
-data.sub.filt <- SubsetSTData(data.sub.filt, idents = c("0_FTE",
-                                                 "1_FTE", "3_Mix"))
-data.sub.filt@assays[["SCT"]]@scale.data <- as.matrix(data.sub.filt@assays[["SCT"]]@data)
-data.sub.filt <- ScaleData(data.sub.filt)
+data.sub.FTE<- SubsetSTData(data.sub.filt, idents = c("0_FTE",
+                                                 "1_FTE"))
+data.sub.FTE@assays[["SCT"]]@scale.data <- as.matrix(data.sub.FTE@assays[["SCT"]]@data)
+data.sub.FTE <- ScaleData(data.sub.FTE)
 
 feature.list <- list(vfeatures.filt) # vfeatures 
 names(feature.list) <- c("Variable_features_filt") # "Variable_features"
@@ -38,10 +38,10 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
   
   #' Original Seurat Heatmap on all clusters
   clust.col <- 
-    c("#7FC97F","#BEAED4","#FDC086")
+    c("#7FC97F","#BEAED4")
                
   names(clust.col) <-c("0_FTE",
-                       "1_FTE", "3_Mix")
+                       "1_FTE")
   patient.col <- colorRampPalette(RColorBrewer::brewer.pal(12,"Paired"))(12) 
   names(patient.col) <- factor(1:12)
   sample.col <- colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(18) 
@@ -66,7 +66,7 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
   cellInfo <- data.frame(Visium_clusters=Idents(data))
   cellInfo$Visium_clusters <- factor(cellInfo$Visium_clusters, 
                                      levels = c("0_FTE",
-                                                "1_FTE", "3_Mix"))
+                                                "1_FTE"))
   cellInfo = cellInfo %>% dplyr::arrange(Visium_clusters)
   ha = HeatmapAnnotation(Cluster = data@meta.data$Visium_clusters, 
                          Sample = data@meta.data$library,
@@ -124,7 +124,7 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
       combined.markers.filt.list <- list()
       for (x in seq_along(levels(data))) {
         gene.list <- list()
-        for (y in seq_along(1:3)) {
+        for (y in seq_along(1:2)) {
           id1=levels(data)[[x]]
           id2=levels(data)[[y]]
           if (gsub(".*_", "", id1) != gsub(".*_", "", id2)) {
@@ -176,10 +176,10 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
         all.markers.filt <- bind_rows(gene.list) 
         all.markers.filt$id1 <- factor(all.markers.filt$id1, 
                                        levels = c("0_FTE",
-                                                  "1_FTE", "3_Mix"))
+                                                  "1_FTE"))
         all.markers.filt$id2 <- factor(all.markers.filt$id2, 
                                        levels = c("0_FTE",
-                                                  "1_FTE", "3_Mix"))
+                                                  "1_FTE"))
         
         all.markers.filt <- all.markers.filt[order(-all.markers.filt$avg_log2FC),]
         write.table(all.markers.filt, 
@@ -196,14 +196,21 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
         combined.markers.filt <- combined.markers.filt[order(combined.markers.filt$id2),]
         combined.markers.filt.list[[id1]] <- combined.markers.filt
         
+        combined.markers.filt.top20 <- combined.markers.filt %>% 
+          dplyr::group_by(id2) %>%
+          dplyr::slice_max(order_by = rank, n = 50)
+        
+        write.table(combined.markers.filt.top20, 
+                    file = paste0("csv/Cluster.",id1,".top20.csv"),
+                    sep =",", quote = F, row.names = F, col.names = T)
         
         #' plot regular seurat heatmap
-        png(file = paste0("heatmap/Cluster.",id1,".all.heatmap.png"), 
-            width = 6000, height = 8000, res = 300) 
+        png(file = paste0("heatmap/Cluster.",id1,".top20.heatmap.png"), 
+            width = 4000, height = 4000, res = 250) 
         print(
           DoHeatmap(data, 
                     assay = "SCT",
-                    features = combined.markers.filt$gene,
+                    features = combined.markers.filt.top20$gene,
                     size = 6, 
                     angle = 45) +
             theme(text = element_text(size = 10)) +
@@ -214,13 +221,13 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
         dev.off() 
         
         #' plot complex heatmap
-        mat<- data[["SCT"]]@data[combined.markers.filt$gene, ] %>% as.matrix()
+        mat<- data[["SCT"]]@data[combined.markers.filt.top20$gene, ] %>% as.matrix()
         ## scale the rows
         mat<- t(scale(t(mat)))
         
         set.seed(1220)
-        png(file = paste0("cheatmap/Cluster.",id1,".all.cheatmap.png"), 
-            width = 6000 , height = 8000, res = 400) 
+        png(file = paste0("cheatmap/Cluster.",id1,".top20.cheatmap.png"), 
+            width = 4000 , height = 4000, res = 300) 
         p <-Heatmap(mat, 
                     name = "Expression", 
                     cluster_columns = F,
@@ -228,7 +235,7 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
                     show_column_dend = F,
                     show_column_names = F,
                     column_title_gp = gpar(fontsize = 12),
-                    column_title = paste("FindMarkers", combined.markers.filt$id1[1], "All",sep = " "),
+                    column_title = paste("FindMarkers", combined.markers.filt$id1[1], "Top20",sep = " "),
                     col = puryel,
                     cluster_rows = F,
                     row_names_side = "left",
@@ -237,7 +244,7 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
                     row_title_gp = gpar(fontsize = 12),
                     row_title_rot = 0,
                     row_title_side = "right", 
-                    row_split = combined.markers.filt$id2,
+                    row_split = combined.markers.filt.top20$id2,
                     cluster_row_slices = F,
                     top_annotation = ha,
                     use_raster = TRUE,
@@ -252,7 +259,7 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
       
       combined.markers.filt.merged <- 
         bind_rows(combined.markers.filt.list[c("0_FTE",
-                                               "1_FTE", "3_Mix")])
+                                               "1_FTE")])
       write.table(combined.markers.filt.merged, 
                   file = paste0("csv/Cluster.all.dup.csv"),
                   sep =",", quote = F, row.names = F, col.names = T)
@@ -268,14 +275,23 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
       write.table(combined.markers.filt.merged, 
                   file = paste0("csv/Cluster.all.once.csv"),
                   sep =",", quote = F, row.names = F, col.names = T)
+      
+      combined.markers.filt.merged.top20 <- combined.markers.filt.merged %>% 
+        dplyr::group_by(id1) %>%
+        dplyr::filter(avg_log2FC > log2(1.5)) %>%
+        dplyr::slice_max(order_by = rank, n = 20) 
+      
+      write.table(combined.markers.filt.merged.top20, 
+                  file = paste0("csv/Cluster.all.once.top20.csv"),
+                  sep =",", quote = F, row.names = F, col.names = T)
      
        #' plot regular seurat heatmap
-      png(file = paste0("heatmap/Cluster.all.heatmap.png"), 
-          width = 6000, height = 8000, res = 300) 
+      png(file = paste0("heatmap/Cluster.all.top20.heatmap.png"), 
+          width = 4000, height = 4000, res = 250) 
       print(
         DoHeatmap(data, 
                   assay = "SCT",
-                  features = combined.markers.filt.merged$gene,
+                  features = combined.markers.filt.merged.top20$gene,
                   size = 6, 
                   angle = 45) +
           theme(text = element_text(size = 10)) +
@@ -286,13 +302,13 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
       dev.off() 
       
       #' plot complex heatmap
-      mat.merged <- data[["SCT"]]@data[combined.markers.filt.merged$gene, ] %>% as.matrix()
+      mat.merged <- data[["SCT"]]@data[combined.markers.filt.merged.top20$gene, ] %>% as.matrix()
       ## scale the rows
       mat.merged <- t(scale(t(mat.merged)))
 
       set.seed(1220)
-      png(file = paste0("cheatmap/Cluster.all.cheatmap.png"), 
-          width = 8000 , height = 8000, res = 450) 
+      png(file = paste0("cheatmap/Cluster.all.top20.cheatmap.png"), 
+          width = 4000 , height = 4000, res = 400) 
       p <-Heatmap(mat.merged, 
                   name = "Expression", 
                   cluster_columns = F,
@@ -300,7 +316,7 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
                   show_column_dend = F,
                   show_column_names = F,
                   column_title_gp = gpar(fontsize = 12),
-                  column_title = paste("FindMarkers All Clusters"),
+                  column_title = paste("FindMarkers FTE Clusters"),
                   col = puryel,
                   cluster_rows = F,
                   row_names_side = "left",
@@ -309,7 +325,7 @@ FindMarkers_filter_combined_FTE <- function(data, feature.list, slot, test, out.
                   row_title_gp = gpar(fontsize = 18),
                   row_title_rot = 0,
                   row_title_side = "right", 
-                  row_split = combined.markers.filt.merged$id1,
+                  row_split = combined.markers.filt.merged.top20$id1,
                   top_annotation = ha,
                   use_raster = TRUE,
                   raster_resize_mat = TRUE,
@@ -325,10 +341,10 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
   
   #' Original Seurat Heatmap on all clusters
   clust.col <- 
-    c("#7FC97F","#BEAED4","#FDC086")
+    c("#7FC97F","#BEAED4")
                
   names(clust.col) <-c("0_FTE",
-                       "1_FTE", "3_Mix")
+                       "1_FTE")
   patient.col <- colorRampPalette(RColorBrewer::brewer.pal(12,"Paired"))(12) 
   names(patient.col) <- factor(1:12)
   sample.col <- colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(18) 
@@ -354,7 +370,7 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
   cellInfo <- data.frame(Visium_clusters=Idents(data))
   cellInfo$Visium_clusters <- factor(cellInfo$Visium_clusters, 
                                      levels = c("0_FTE",
-                                                "1_FTE", "3_Mix"))
+                                                "1_FTE"))
   cellInfo = cellInfo %>% dplyr::arrange(Visium_clusters)
   ha = HeatmapAnnotation(Cluster = data@meta.data$Visium_clusters, 
                          Sample = data@meta.data$library,
@@ -398,8 +414,12 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
         
       all.markers$cluster <- factor(all.markers$cluster, 
                                     levels = c("0_FTE",
-                                               "1_FTE", "3_Mix"))
+                                               "1_FTE"))
      
+      # top 20 positive up-regulated genes
+      all.markers.top20 <- all.markers %>% 
+        dplyr::group_by(cluster) %>%
+        dplyr::slice_max(order_by = rank, n = 20) 
       
       sub.out.dir <- c("csv","heatmap","cheatmap")
       for (name in sub.out.dir) {
@@ -411,13 +431,17 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
                   file = "csv/All.clusters.markers.csv",
                   sep =",", quote = F, row.names = F, col.names = T)
       
+      write.table(all.markers.top20, 
+                  file = "csv/All.clusters.markers.top20.csv",
+                  sep =",", quote = F, row.names = F, col.names = T)
+      
   #' plot regular seurat heatmap
-        png(file = paste0("heatmap/All.clusters.markers.heatmap.png"), 
-            width = 6000, height = 8000, res = 300) 
+        png(file = paste0("heatmap/All.clusters.markers.top20.heatmap.png"), 
+            width = 2000, height = 2000, res = 300) 
         print(
           DoHeatmap(data, 
                     assay = "SCT",
-                    features = all.markers$gene,
+                    features = all.markers.top20$gene,
                     size = 6, 
                     angle = 45) +
             theme(text = element_text(size = 10)) +
@@ -429,7 +453,7 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
         
       
         #' plot complex heatmap
-        mat <- data[["SCT"]]@data[all.markers$gene, ] %>% as.matrix()
+        mat <- data[["SCT"]]@data[all.markers.top20$gene, ] %>% as.matrix()
         ## scale the rows
         mat <- t(scale(t(mat)))
         #' make the color scale
@@ -438,8 +462,8 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
         
         
         set.seed(1220)
-        png(file = paste0("cheatmap/All.clusters.markers.cheatmap.png"), 
-            width = 6000 , height = 8000, res = 300) 
+        png(file = paste0("cheatmap/All.clusters.markers.top20.cheatmap.png"), 
+            width = 2000 , height = 2000, res = 300) 
         p <-Heatmap(mat, 
                     name = "Expression", 
                     cluster_columns = F,
@@ -447,7 +471,7 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
                     show_column_dend = F,
                     show_column_names = F,
                     column_title_gp = gpar(fontsize = 12),
-                    column_title = "FindAllMarkers All Clusters",
+                    column_title = "FindAllMarkers FTE Clusters",
                     col = puryel,
                     cluster_rows = F,
                     row_names_side = "left",
@@ -470,15 +494,143 @@ FindAllMarkers_filter_combined_FTE <- function(data, slot, feature.list, test, o
   }
 
 
-#' batch corrected on data with combat on sample as covariate
-FindMarkers_filter_combined_FTE(data = data.sub.filt, 
+#' batch corrected on data with HarmonyMatrix() on sample as covariate
+FindMarkers_filter_combined_FTE(data = data.sub.FTE, 
                                slot = "scale.data", # data or scale.data
                                feature.list = feature.list, 
                                test = test,
-                               out.name = "harmony_sample_log2SCTcounts1_FTE")
+                               out.name = "harmony_sample_log2SCTcounts1_FTE_only")
+sessionInfo() %>% capture.output(file="session_info.txt")
 
-FindAllMarkers_filter_combined_FTE(data = data.sub.filt, 
+
+FindAllMarkers_filter_combined_FTE(data = data.sub.FTE, 
                                   slot = "scale.data",
                                   feature.list = feature.list, 
                                   test = test,
-                                  out.name = "harmony_sample_log2SCTcounts1_FTE")
+                                  out.name = "harmony_sample_log2SCTcounts1_FTE_only")
+sessionInfo() %>% capture.output(file="session_info.txt")
+
+
+#' plot top FTE genes in 3_Mix cluster
+data.sub.Mix<- SubsetSTData(data.sub.filt, idents = c("3_Mix"))
+
+Cluster_all_once_top20 <- readr::read_csv("~/OVisium/DE_functional_analysis/OVisium_SCT_merged/harmony_SCT_res_0.6/Variable_features_filt/MAST/FindMarkers/Combined_filtered_markers_v1/2024-05-16_harmony_sample_log2SCTcounts1_FTE_only/csv/Cluster.all.once.top20.csv")
+
+data<-data.sub.Mix
+
+clust.col <- 
+  c("#FDC086")
+
+names(clust.col) <-c("3_Mix")
+patient.col <- colorRampPalette(RColorBrewer::brewer.pal(12,"Paired"))(12) 
+names(patient.col) <- factor(1:12)
+sample.col <- colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(18) 
+names(sample.col) <- c("PO2", "PO2_2re", "PO6", "PO7_A1", "PO7_2", "PO9_B1", 
+                       "PO13", "PO13a", "PO20", "PO20a", "PO20_2", "PO28", "PO35", 
+                       "PO37", "PO40", "PO40_2", "PO41", "PO45")
+batch.col <- colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(5) 
+names(batch.col) <- c("V10S21-048" ,"V10S21-050","V10T06-031","V10T06-110","V10U22-108") 
+
+anno.col = list(
+  Cluster = clust.col,
+  Sample = sample.col,
+  Patient = patient.col,
+  Tissue = c(Fimbrial = "#FC2947", Otherside = "#FE6244", Proximal = "#FFDEB9"),
+  Age = c("35+" = "#EBE76C", "40+" = "#F0B86E", "45+" = "#ED7B7B", "50+" = "#836096"),
+  Batch = batch.col
+)
+
+puryel = circlize::colorRamp2(c(-2, 0, 2), c("#FF00FF", "black", "#FFFF00"))
+
+#' Seurat assay data and annotation for individual spots
+cellInfo <- data.frame(Visium_clusters=Idents(data))
+cellInfo$Visium_clusters <- factor(cellInfo$Visium_clusters, 
+                                   levels = c("3_Mix"))
+cellInfo = cellInfo %>% dplyr::arrange(Visium_clusters)
+ha = HeatmapAnnotation(Cluster = data@meta.data$Visium_clusters, 
+                       Sample = data@meta.data$library,
+                       Patient = data@meta.data$patient,
+                       Tissue = data@meta.data$origin,
+                       Age = data@meta.data$age,
+                       Batch = data@meta.data$slide,
+                       col = anno.col,
+                       annotation_name_gp= gpar(fontsize = 18),
+                       annotation_legend_param = list(
+                         Cluster = list(
+                           title_gp = gpar(fontsize = 14, 
+                                           fontface = "bold"), 
+                           labels_gp = gpar(fontsize = 14)),
+                         Sample = list(
+                           title_gp = gpar(fontsize = 14, 
+                                           fontface = "bold"), 
+                           labels_gp = gpar(fontsize = 14)),
+                         Patient = list(
+                           title_gp = gpar(fontsize = 14, 
+                                           fontface = "bold"), 
+                           labels_gp = gpar(fontsize = 14)),
+                         Tissue = list(
+                           title_gp = gpar(fontsize = 14, 
+                                           fontface = "bold"), 
+                           labels_gp = gpar(fontsize = 14)),
+                         Age = list(
+                           title_gp = gpar(fontsize = 14, 
+                                           fontface = "bold"), 
+                           labels_gp = gpar(fontsize = 14)),
+                         Batch = list(
+                           title_gp = gpar(fontsize = 14, 
+                                           fontface = "bold"), 
+                           labels_gp = gpar(fontsize = 14))
+                       )
+)
+
+png(file = paste0("heatmap/cluster.Mix.top20FTEmarkers.heatmap.png"), 
+    width = 2000, height = 2000, res = 300) 
+print(
+  DoHeatmap(data, 
+            assay = "SCT",
+            features = Cluster_all_once_top20$gene,
+            size = 6, 
+            angle = 45) +
+    theme(text = element_text(size = 10)) +
+    theme(axis.text = element_text(size = 12)) + 
+    guides(color="none") +
+    labs(fill = "Expression")
+)
+dev.off()
+
+
+#' plot complex heatmap
+mat <- data[["SCT"]]@data[Cluster_all_once_top20$gene, ] %>% as.matrix()
+## scale the rows
+mat <- t(scale(t(mat)))
+#' make the color scale
+#scale <- quantile(mat, c(0.1, 0.95)) %>% unname() %>% abs() %>% round(digits = 0)
+#puryel = circlize::colorRamp2(c(-scale[1], 0, scale[2]), c("#FF00FF", "black", "#FFFF00"))
+
+
+set.seed(1220)
+png(file = paste0("cheatmap/Cluster.Mix.top20.cheatmap.png"), 
+    width = 4000 , height = 4000, res = 400) 
+p <-Heatmap(mat, 
+            name = "Expression", 
+            cluster_columns = F,
+            column_order = row.names(cellInfo),
+            show_column_dend = F,
+            show_column_names = F,
+            column_title_gp = gpar(fontsize = 12),
+            column_title = paste("FTE Markers in Cluster 3_Mix"),
+            col = puryel,
+            cluster_rows = F,
+            row_names_side = "left",
+            show_row_dend = F,
+            row_names_gp = gpar(fontsize = 7),
+            row_title_gp = gpar(fontsize = 18),
+            row_title_rot = 0,
+            row_title_side = "right", 
+            row_split = Cluster_all_once_top20$id1,
+            top_annotation = ha,
+            use_raster = TRUE,
+            raster_resize_mat = TRUE,
+            raster_quality = 4)
+p <- draw(p)
+dev.off()
