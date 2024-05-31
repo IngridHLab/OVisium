@@ -1,5 +1,8 @@
-#' Spatial Visualization of DEGs that related to TNFa as well as AGR2/3
-#' dotplot of markers in individual sample
+#' Individual sample
+#' Visualization of individual DEGs that related to TNFa and AGR2/3
+#' UMAP Feature plot, Violin plot split by cluster, H&E image and spatial feature plot of individual sample and feature
+#' dotplot of all features split by clusters
+
 library(fs)
 home <- path_home()
 source(paste(home, "OVisium/manuscript/gitHub/1_library.R", sep = "/"))
