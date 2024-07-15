@@ -10,7 +10,7 @@ current_date_time=$(date +'%Y%m%d')
 export PATH=$path/spaceranger-2.0.1:$PATH
 spaceranger sitecheck > sitecheck.txt
 
-#' Create a txt file for all samples
+#' Create a sample sheet for all samples
 aggTable=$path/aggTable_$current_date_time.csv
 printf "library_id,molecule_h5,cloupe_file,spatial_folder,patient,mutation,variant,age,sample,origin,slide,area,run,fastq\n" > $aggTable 
 
