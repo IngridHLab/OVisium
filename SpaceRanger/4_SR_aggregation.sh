@@ -27,7 +27,7 @@ done < <(tail -n +2 $input)
 
 #' Perform aggregation of multiple slices
 #' A sample sheet should be prepared accordingly as the example csv file
-#' Specifiy 'none' if no seq depth normalization during the aggregation
+#' Specifiy 'none' if no seq depth normalization during the aggregation or 'mapped' to have seq depth normalization
 spaceranger aggr --id=AGG_BRCA_18_$current_date_time --csv=$aggTable --normalize=none
 
 
