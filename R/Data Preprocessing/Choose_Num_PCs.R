@@ -1,4 +1,3 @@
-
   #' Quantitative elbowplot:
   #' Determine percent of variation associated with each PC
   pct <- data[["pca"]]@stdev / sum(data[["pca"]]@stdev) * 100
