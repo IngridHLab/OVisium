@@ -153,11 +153,11 @@ ggarrange(p1,p2,p3,p4, ncol = 2, nrow = 2, labels = c("A","B","C","D"))
 dev.off()
 
 #' Data distribution density plots
-#' Add number of genes per UMI for each cell to metadata
+#' Add number of genes per UMI for each spot to metadata
 merged$log10FeaturesPerUMI <- log10(merged$nFeature_RNA) / log10(merged$nCount_RNA)
 metadata <- merged@meta.data
 
-#' Visualize the number of cell counts per sample
+#' Visualize the number of spot counts per sample
 p1 <-metadata %>% 
     ggplot(aes(x=origin, fill=origin)) + 
     geom_bar() +
@@ -168,7 +168,7 @@ p1 <-metadata %>%
     xlab("") + 
   theme(plot.margin = margin(1,1,1,1, "cm"))
 
-#' Visualize the number UMIs/transcripts per cell
+#' Visualize the number UMIs/transcripts per spot
 p2 <- metadata %>% 
     ggplot(aes(color=origin, x=nCount_RNA, fill= origin)) + 
     geom_density(alpha = 0.2) +
@@ -179,7 +179,7 @@ p2 <- metadata %>%
     geom_vline(xintercept = 500) + 
   theme(plot.margin = margin(1,1,2,1, "cm"))
 
-#' Visualize the distribution of genes detected per cell via histogram
+#' Visualize the distribution of genes detected per spot via histogram
 p3 <- metadata %>% 
     ggplot(aes(color=origin, x=nFeature_RNA, fill= origin)) + 
     geom_density(alpha = 0.2) + 
@@ -201,7 +201,7 @@ p4 <- metadata %>%
     geom_vline(xintercept = 0.83) + 
   theme(plot.margin = margin(1,1,2,1, "cm"))
 
-#' Visualize the distribution of mitochondrial gene expression detected per cell
+#' Visualize the distribution of mitochondrial gene expression detected per spot
 p5 <- metadata %>% 
     ggplot(aes(color=origin, x=Mito.percent, fill=origin)) + 
     geom_density(alpha = 0.2) + 
@@ -213,7 +213,7 @@ p5 <- metadata %>%
   theme(plot.margin = margin(1,1,2,1, "cm"))
 
 #' Visualize the correlation between genes detected and number of UMIs and 
-#' determine whether strong presence of cells with low numbers of genes/UMIs
+#' determine whether strong presence of spots with low numbers of genes/UMIs
 p6 <- metadata[which(metadata$log10FeaturesPerUMI>0.83),] %>% 
     ggplot(aes(x=nCount_RNA, y=nFeature_RNA, color=Mito.percent)) + 
     geom_point() + 
@@ -238,7 +238,7 @@ dev.off()
 #' Additionally, we can also see which genes contribute the most to such reads. 
 #' We can for instance plot the percentage of counts per gene.
 
-# Compute the relative expression of each gene per cell Use sparse matrix
+# Compute the relative expression of each gene per spot Use sparse matrix
 # operations, if your dataset is large, doing matrix devisions the regular way
 # will take a very long time.
 par(mar = c(4, 8, 2, 1))
