@@ -9,7 +9,7 @@ cd $path/Outs
 export PATH=$path/spaceranger-2.0.1:$PATH
 spaceranger sitecheck > sitecheck.txt
 
-#' A sample sheet contains 7 columns 
+#' A sample sheet contains 13 columns 
 while IFS=, read -r patient mutation variant age sample origin library slide area image run fastq json
 do
 
