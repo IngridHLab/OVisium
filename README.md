@@ -55,6 +55,32 @@ The newer version of Seurat introduces the [SCTransform](https://genomebiology.b
 ./OVisium/R/Data Preprocessing/Merge_Visium_Samples.R
 ```
 #### 2.2. Imaging and QC
+Visualize the QC matrices of individuals in the merged object including "nFeature_RNA", "nCount_RNA", "Mito.percent", "Ribo.percent" and "Hb.percent" by spatial plots and violin plots as well as overall density histogram of the merged object splited by tissue origins (fimbrial, proximal)
+Most of the spots have good number of features and expression level.
+However, based on the statistic below one could filter away those spots
+which have ex.
+
+-   minGenesPerSpot : sets a threshold for the minimum allowed number of
+    unique genes in a spot (A). Removing spots which have low number of
+    RNA transcripts/features. ex. \>=100
+
+-   minUMICountsPerSpot : sets a threshold for the minimum allowed UMI
+    counts in a spot (B). Removing spots which have low RNA expression.
+    ex. \>=500
+
+-   minUMICountsPerGene: sets a threshold for the minimum allowed UMI
+    counts of a gene across the whole dataset (C). Removing genes low
+    expression. ex. \>=100
+
+-   minSpotsPerGene : sets a threshold for the minimum allowed number of
+    spots where a gene is detected cross the whole dataset (D). Removing
+    low abundant gene. ex. \>=5
+
+-   topN : subset the expression matrix to include only the topN most
+    expressed genes.
+```{r}
+./OVisium/R/Data Preprocessing/Visualization_Data_Quality_Distribution.R
+
 Filter, SCTransform individual samples and merge them through *STutility*. The variable features identified by the SCTransform from individuals (3000) were united and resulted in 6189 variable features:
 
 ```{r}
@@ -79,26 +105,5 @@ Alternative, filter, SCTransform individual samples and integrate them through *
 ./OVisium/R/Data Preprocessing/Subset_SCT_Integrate_Seurat.R
 ```
 
-Most of the spots have good number of features and expression level.
-However, based on the statistic below one could filter away those spots
-which have ex.
 
--   minGenesPerSpot : sets a threshold for the minimum allowed number of
-    unique genes in a spot (A). Removing spots which have low number of
-    RNA transcripts/features. ex. \>=100
-
--   minUMICountsPerSpot : sets a threshold for the minimum allowed UMI
-    counts in a spot (B). Removing spots which have low RNA expression.
-    ex. \>=500
-
--   minUMICountsPerGene: sets a threshold for the minimum allowed UMI
-    counts of a gene across the whole dataset (C). Removing genes low
-    expression. ex. \>=100
-
--   minSpotsPerGene : sets a threshold for the minimum allowed number of
-    spots where a gene is detected cross the whole dataset (D). Removing
-    low abundant gene. ex. \>=5
-
--   topN : subset the expression matrix to include only the topN most
-    expressed genes.
 
