@@ -14,7 +14,7 @@ load(paste0(rds.dir, "/Variable_features_filt_SCT_log2counts+1_harmony.RData"))
 
 #' Choose the data file 
 data <- dat.deg  #' data <- data.sub.filt
-source(paste(home, "OVisium/manuscript/gitHub/ComplexHeatmap_settings.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/ComplexHeatmap_settings.R", sep = "/"))
 
 #' copy csv files to one place
 #' top 20 gene list
