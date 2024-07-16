@@ -52,18 +52,17 @@ The newer version of Seurat introduces the [SCTransform](https://genomebiology.b
 ```{r}
 #' Manually Merge individual spacerange outputs instead of using the `spacerange agg`
 #' Use the `infoTable` as mentioned above to merge the individuals in the same order  
-./OVisium/R/Data Preprocessing/Merge_Visium_Samples.R
+./OVisium/R/Data_Preprocessing/Merge_Visium_Samples.R
 ```
 #### 2.2. Imaging and QC
 Visualize the QC matrices of individuals in the merged object including "nFeature_RNA", "nCount_RNA", "Mito.percent", "Ribo.percent" and "Hb.percent" by spatial plots and violin plots as well as overall density histogram of the merged object splited by tissue origins (fimbrial, proximal and other fimbrial). "log10FeaturesPerUMI", the overall complexity of the gene expression (novelty score) by visualizing the number of genes detected per UMI. Additionally, we also checked which genes contribute the most reads by plotting the percentage of counts per gene per spot.
-
 ```{r}
 #' This script generate QC plots in the supplementary figure 3 & 4
-./OVisium/R/Data Preprocessing/Visualization_Data_Quality_Distribution.R
+./OVisium/R/Data_Preprocessing/Visualization_Data_Quality_Distribution.R
 ```
 
-Filter, SCTransform individual samples and merge them through *STutility*. The variable features identified by the SCTransform from individuals (3000) were united and resulted in 6189 variable features:
-
+#### 2.3. Subset, filter, SCTransform and select variable features
+Filter, SCTransform individual samples and merge them through *STutility*. The variable features will be identified by the SCTransform from the individuals (3000) and then combined:
 ```{r}
 #' According to our data QC distribution, filter the spots as below before SCTransform:
 #' nCount_RNA > 500 &
@@ -72,9 +71,12 @@ Filter, SCTransform individual samples and merge them through *STutility*. The v
 #' Mito.percent < 15 &
 #' Ribo.percent >5 &
 #' Ribo.percent < 50 
-./OVisium/R/Data Preprocessing/Subset_SCT_Merge.R
+./OVisium/R/Data_Preprocessing/Subset_SCT_Merge.R
+
+#' Output file: OVisium_SCT_merged.rds
 ```
-Alternative, filter, SCTransform individual samples and integrate them through *Seurat*. The 3000 integrated variable features were selected afterward. 
+
+Alternative, filter, SCTransform individual samples and integrate or merge them through *Seurat*. Gene symbols will be first converted to Ensembl ids. Individuals will be integrated and 3000 variable features will be selected after integration. Individuals can be also merged and individual variable features will be combined instead. The output files can be used in the deconvolution later.     
 ```{r}
 #' According to our data distribution, filter the spots as below before SCTransform:
 #' nCount_RNA > 500 &
@@ -83,8 +85,18 @@ Alternative, filter, SCTransform individual samples and integrate them through *
 #' Mito.percent < 15 &
 #' Ribo.percent >5 &
 #' Ribo.percent < 50 
-./OVisium/R/Data Preprocessing/Subset_SCT_Integrate_Seurat.R
+./OVisium/R/Data_Preprocessing/Subset_SCT_Integrate_Seurat.R
+
+#' Output file: OVisium_ens_SCT_integrated.rds
 ```
+
+#### 2.4. PCA dimensional reduction and Harmony integration (standard seurat way)
+
+Using the standard seurat analysis pipeline to process the data. The PCA is performed on the scale.data from the variable features. The scale.data of the SCTransform data is obtained through `GetResidual` function. The optimal number of principle components is determined by  quantitative elbowplot method. The PCA step will be applied in the previous step 2.3 right after merging. 
+```{r}
+./OVisium/R/Data_Preprocessing/
+
+
 
 
 
