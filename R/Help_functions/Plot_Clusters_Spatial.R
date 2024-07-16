@@ -3,8 +3,8 @@
 #' Decide which data and resolution before ploting
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/1_library.R", sep = "/"))
-source(paste(home, "OVisium/manuscript/gitHub/2_directory.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Load_Library.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
 dir.create(paste(dims.dir, "Cluster", sep = "/"), recursive = T)
 
 #' The optimal resolution based on morphology and preliminary DEG is 0.6 from 
