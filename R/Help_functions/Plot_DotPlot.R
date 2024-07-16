@@ -1,8 +1,8 @@
 #' Visualization of differential gene expression on reference cell markers
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/1_library.R", sep = "/"))
-source(paste(home, "OVisium/manuscript/gitHub/2_directory.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Load_Library.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
 
 #' Reference cell markers from single cell data
 ref.markers<-read.csv(paste(deg.dir, "single_cell_markers.csv", sep = "/"))
