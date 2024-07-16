@@ -29,7 +29,7 @@ data@assays[["SCT"]]@data <- Matrix(as.matrix(m.harmony), sparse = T)
 data@assays[["SCT"]]@counts <- Matrix(pmax(round(2^as.matrix(data@assays[["SCT"]]@data)-1, digits = 0),0), sparse = T)
 
 #' subset only 11 clusters
-source(paste(home, "OVisium/manuscript/gitHub/17_DEA_Prep_harmony.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Subset_Rename_Clusters.R", sep = "/"))
 
 #' filter the variable features based on distribution
 gene_attr <- 
