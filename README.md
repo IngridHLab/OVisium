@@ -277,7 +277,6 @@ The following steps are used in our OVisium data:
 8. Optional: bulk analysis through `AverageExpression` function on spots from either fimbrial or proximal of the same patient.
 
 ```{r}
-#' DEA between 8 clusters
 #' Generate volcano plot for each patient
 #' Optional: generate complexheatmap for the bulk analysis
 Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_Patient_Volcano_ComplexHeatmap.R
@@ -298,7 +297,6 @@ The follow steps are used in our OVisium data:
 8. Optional: bulk analysis through `AverageExpression` function on spots from either the same patient or the same mutational variant.
 
 ```{r}
-#' DEA between 8 clusters
 #' Generate volcano plot for each patient
 #' Optional: generate complexheatmap for the bulk analysis
 Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_BRCA_Volcano_ComplexHeatmap.R
