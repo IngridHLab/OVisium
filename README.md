@@ -43,7 +43,7 @@ We also have two samples from two different patients and the capture areas were 
 Based on the default graph-based clustering results from *Spaceranger* and *Loupe Browser*, we will need to run some batch correctionor sample integration to bring different sequencing libraries as well as the FTEs clusters into alignment. The workflow below is adapted to the *10XGenomics* [batch correction method on Visium data](https://www.10xgenomics.com/resources/analysis-guides/correcting-batch-effects-in-visium-data), [Seurat](https://satijalab.org/seurat/) R package for [analysis of spatial datasets](https://satijalab.org/seurat/articles/spatial_vignette.html), [Harmony](https://www.nature.com/articles/s41592-019-0619-0) and other R
 packages.
 
-#### 2.1. Workflow details
+#### 2.1. Workflow Details
 
 The newer version of Seurat introduces the [SCTransform](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1) workflow, which is an alternative to the NormalizeData, FindVariableFeatures, ScaleData workflow. This procedure skips heuristic steps such as pseudocount addition or log-transformation and improves downstream analysis such as variable gene selection, dimensional reduction and differential expression.
 
@@ -61,7 +61,7 @@ Visualize the QC matrices of individuals in the merged object including "nFeatur
 Rscript ./OVisium/R/Data_Preprocessing/Visualization_Data_Quality_Distribution.R
 ```
 
-#### 2.3. Subset, filter, SCTransform and select variable features
+#### 2.3. Subset, Filter, SCTransform and Select Variable Features
 Filter, SCTransform individual samples and merge them through *STutility*. The variable features will be identified by the SCTransform from the individuals (3000) and then combined:
 ```{r}
 #' According to our data QC distribution, filter the spots as below before SCTransform:
@@ -94,7 +94,7 @@ Rscript ./OVisium/R/Data_Preprocessing/Subset_SCT_Integrate_Seurat.R
 #' Output file 2: OVisium_ens_SCT_merged.rds
 ```
 
-#### 2.4. PCA dimensional reduction and Harmony integration (standard *Seurat*)
+#### 2.4. PCA Dimensional Reduction and Harmony Integration (Standard *Seurat*)
 
 Using the standard seurat analysis pipeline to process the data. The PCA is performed on the scale.data from the variable features. The scale.data of the SCTransform data is obtained through `GetResidual` function. The optimal number of principle components is determined by  quantitative elbowplot method. The PCA step is applied in the previous step 2.3 right after merging. 
 
@@ -128,7 +128,7 @@ Rscript ./OVisium/R/Data_Preprocessing/Harmony_Integration_DimReduction.R
 #' Output file: OVisium_SCT_merged_dims.rds
 ```
 
-#### 2.5. Determine the number of clusters
+#### 2.5. Determine the Number of Clusters
 The optimal number of clusters for the Visium data can be determined by the *clustree* R package, which utilizes [C7 (Gene730)](https://www.ncbi.nlm.nih.gov/gene/730) house keeping gene and [SC3 stability](https://pubmed.ncbi.nlm.nih.gov/28346451/) to visualize the clusterings, together with the morphological appearance of the tissue. The resolution of clustering is tested between 0.1 and 1 with 0.1 increasement in the *Seurat* `FindClusters` function.
 
 ```{r}
@@ -136,7 +136,7 @@ The optimal number of clusters for the Visium data can be determined by the *clu
 #' clustree plots for the supplementary figure 9
 Rscript ./OVisium/R/Data_Preprocessing/Choose_Number_Clusters.R
 
-#' Output file: OVisium_SCT_merged_clusters.rds
+#' Output file: OVisium_SCT_merged_clust.rds
 
 #' Export clusters annotation for Loupe Browser
 Rscript ./OVisium/R/Help_functions/Export_Clusters_LoupeBrowser.R
@@ -148,4 +148,34 @@ Rscript ./OVisium/R/Help_functions/Subset_Rename_Clusters.R
 Rscript ./OVisium/R/Help_functions/Plot_Clusters_Spatial.R
 ```
 
-#### 2.6 
+#### 2.6 Differential Expression Analaysis
+Before running the DEA using the standard *Seurat* `FindMarkers` function, we will perform log2 transformation for better fold-change calculation and harmony batch correction on the expression matrix (SCTransformed count data) to remove batch effects from the Visium preparation. 
+
+The detail steps for the OVisium data:
+1. Use all spots from 12 clusters in the OVisium_SCT_merged_clust.rds.
+2. Subset SCTcounts from 6189 most variable genes united from 18 samples.
+3. Calculate log2(SCTcounts+1) on spot x gene matrix.
+4. Perform HarmonyMatrix using sample id as covariant.
+
+$$
+HarmonyMatrix(log2(SCT\ Counts_{variable\ features} + 1))
+$$
+
+6. Subset away spots from cluster #4
+7. Filter variable genes based on their distribution.
+     -  Total counts per gene >500​ &
+     -  Max counts > 4 & 
+     -  Percentage of spots > 1% &​
+     -  98 Percentile of log2(Data+1) > log2(2.5) &
+     -  Remove genes contain: "^MT-", "^RP[SL]",  "^MTRNR", "^LINC"​
+
+```{r}
+#' Input file: OVisium_SCT_merged_clust.rds
+Rscript ./OVisium/R/Differential_Expression_Analysis/HarmonyMatrix_log2DataPlus1_QC_Filter_VariableGenes.R
+
+#' Output file: Variable_features_filt_SCT_log2counts+1_harmony.RData
+#' Additional output files for the manuscript:
+#' 11clusters_filt_vfeatureas_SCTcounts_log2+1_harmony_samples.csv
+#' Filtered_spots_sample_cluster_annotation.csv
+```
+
