@@ -8,7 +8,7 @@
 
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/10_choose_pca_dims.R", sep = "/"),
+source(paste(home, "OVisium/R/Data_Preprocessing/Choose_Num_PCs.R", sep = "/"),
        print.eval = TRUE, local = TRUE)
        
 merged <- readRDS(paste(rds.dir, "OVisium_merged_qc.rds", sep = "/"))
