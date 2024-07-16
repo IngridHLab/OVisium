@@ -162,8 +162,8 @@ $$
 HarmonyLog2Data = HarmonyMatrix(log2(SCT\ Counts_{variable\ features} + 1))
 $$
 
-6. Subset away spots from cluster #4
-7. Filter variable genes based on their distribution.
+6. Subset away spots from cluster_4
+7. Filter variable genes based on distribution of the OVisium data:
      -  Total counts per gene >500​ &
      -  Max counts > 4 & 
      -  Percentage of spots > 1% &​
@@ -190,7 +190,7 @@ As a default, *Seurat* performs differential expression based on the non-paramet
 The following steps are used for the OVisium data:
 1. Scale and center *HarmonyLog2Data*.​
 2. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`, `ident.2`, 11x10).
-3. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*avg_log2FC​
+3. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*`avg_log2FC`​
 4. Filter with `min.diff.pct` > 0.1 or 0.25, abs(`avg_log2FC`) > log2(1.5 or 2.5) and abs(`rank`) > -log10(10E-5)* log2(1.5 or 2.5). Depends on `ident.1` & `ident.2` are from the same tissue compartment or not.
 5. Combine the results with the same `ident.1`.​
 6. Order they by `avg_log2FC` descending.​
@@ -223,7 +223,7 @@ In the OVisium data, we have 2 clusters from the epithelial compartment and 8 cl
 1. Subset FTE clusters (0_FTE and 1_FTE)
 2. Scale and center *HarmonyLog2Data*.​
 3. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`, `ident.2`, 2x1).
-4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*avg_log2FC​
+4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*`avg_log2FC`​
 5. Filter with `min.diff.pct` > 0.1, abs(`avg_log2FC`) > 0.25 and abs(`rank`) > -log10(10E-5)* 0.25.
 6. Combine the results with the same `ident.1`.​
 7. Order they by `avg_log2FC` descending.​
@@ -245,7 +245,7 @@ Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_FTE_ComplexHeat
 1. Subset Stroma clusters (2, 5-11_Stroma)
 2. Scale and center *HarmonyLog2Data*.​
 3. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`, `ident.2`, 8x7).
-4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*avg_log2FC​
+4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*`avg_log2FC`​
 5. Filter with `min.diff.pct` > 0.1, abs(`avg_log2FC`) > log2(1.5) and abs(`rank`) > -log10(10E-5)* log2(1.5).
 6. Combine the results with the same `ident.1`.​
 7. Order they by `avg_log2FC` descending.​
@@ -263,3 +263,23 @@ Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_Stroma_ComplexH
 
 #' Output fold name: 2024-05-04_harmony_sample_log2SCTcounts1_Stroma  
 ```
+#### 2.6.3 `FindMarkers` between Fimbrial and Proximal Tissues
+DEA on Visium samples from different part of the fallopian tubes from the same patient. Only 4 patients in our cohort have paired samples.
+
+1. Subset individual patient (no. 1, 3, 6 and 10)
+2. Scale and center *HarmonyLog2Data*.​
+3. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`:Fimbrial, `ident.2`:Proximal).
+4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*`avg_log2FC`​
+5. Filter with `min.diff.pct` > 0.1.
+6. Top20: Filter abs(`avg_log2FC`) >= 0.25 and slice max by abs(`rank`).​
+7. Valcano plot: all DEGs with `pCutoff` = 10E-5 (adj_p_val) and `FCcutoff` = log2(1.5)
+8. Optional: bulk analysis through `AverageExpression` function on spots from either fimbrial or proximal of the same patient.
+
+```{r}
+#' DEA between 8 clusters
+#' Generate complexheatmap
+Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_Patient_Volcano_ComplexHeatmap.R
+
+#' Output fold name: 2024-03-16_patient_pair 
+```
+
