@@ -58,7 +58,7 @@ The newer version of Seurat introduces the [SCTransform](https://genomebiology.b
 Visualize the QC matrices of individuals in the merged object including "nFeature_RNA", "nCount_RNA", "Mito.percent", "Ribo.percent" and "Hb.percent" by spatial plots and violin plots as well as overall density histogram of the merged object splited by tissue origins (fimbrial, proximal and other fimbrial). "log10FeaturesPerUMI", the overall complexity of the gene expression (novelty score) by visualizing the number of genes detected per UMI. Additionally, we also checked which genes contribute the most reads by plotting the percentage of counts per gene per spot.
 ```{r}
 #' This script generate QC plots in the supplementary figure 3 & 4
-./OVisium/R/Data_Preprocessing/Visualization_Data_Quality_Distribution.R
+Rscript ./OVisium/R/Data_Preprocessing/Visualization_Data_Quality_Distribution.R
 ```
 
 #### 2.3. Subset, filter, SCTransform and select variable features
@@ -71,9 +71,12 @@ Filter, SCTransform individual samples and merge them through *STutility*. The v
 #' Mito.percent < 15 &
 #' Ribo.percent >5 &
 #' Ribo.percent < 50 
-./OVisium/R/Data_Preprocessing/Subset_SCT_Merge.R
+Rscript ./OVisium/R/Data_Preprocessing/Subset_SCT_Merge.R
 
 #' Output file: OVisium_SCT_merged.rds
+
+#' Get statistic summary of the merged data
+Rscript ./OVisium/R/Help_functions/Statistic_Result.R
 ```
 
 Alternative, filter, SCTransform individual samples and integrate or merge them through *Seurat*. Gene symbols will be first converted to Ensembl ids. Individuals will be integrated and 3000 variable features will be selected after integration. Individuals can be also merged and individual variable features will be combined instead. The output files can be used in the deconvolution later.     
@@ -85,18 +88,64 @@ Alternative, filter, SCTransform individual samples and integrate or merge them 
 #' Mito.percent < 15 &
 #' Ribo.percent >5 &
 #' Ribo.percent < 50 
-./OVisium/R/Data_Preprocessing/Subset_SCT_Integrate_Seurat.R
+Rscript ./OVisium/R/Data_Preprocessing/Subset_SCT_Integrate_Seurat.R
 
-#' Output file: OVisium_ens_SCT_integrated.rds
+#' Output file 1: OVisium_ens_SCT_integrated.rds and
+#' Output file 2: OVisium_ens_SCT_merged.rds
 ```
 
-#### 2.4. PCA dimensional reduction and Harmony integration (standard seurat way)
+#### 2.4. PCA dimensional reduction and Harmony integration (standard *Seurat*)
 
-Using the standard seurat analysis pipeline to process the data. The PCA is performed on the scale.data from the variable features. The scale.data of the SCTransform data is obtained through `GetResidual` function. The optimal number of principle components is determined by  quantitative elbowplot method. The PCA step will be applied in the previous step 2.3 right after merging. 
+Using the standard seurat analysis pipeline to process the data. The PCA is performed on the scale.data from the variable features. The scale.data of the SCTransform data is obtained through `GetResidual` function. The optimal number of principle components is determined by  quantitative elbowplot method. The PCA step is applied in the previous step 2.3 right after merging. 
+
+The PCs threshold in the quantitative elbowplot:
+
+-  Cutoff_1: The point where the PCs contribute less than 5% of standard deviation and the PCs cumulatively contribute over 90% of the standard deviation. 
+
+-  Cutoff_2: The point where the percent change in variation between the consecutive PCs is less than 0.1%. 
+
+<p align ="center">
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/7458b577-7437-4c4a-8abb-9002b82d0345">
+</p>
+
 ```{r}
-./OVisium/R/Data_Preprocessing/
+#' This script is sourced in the step 2.3
+#' Generate supplementary figure 8A
+Rscript ./OVisium/R/Data_Preprocessing/Choose_Num_PCs.R
+```
+Next, *[Harmony](https://www.nature.com/articles/s41592-019-0619-0)* R package will be used to integrates individual Visium samples (sample ids as covarient) by adjusting PCA embedding value of the features accordingly instead of the actual expression level. Further dimensional reduction ex. TSNE, UMAP and [UWOT](https://github.com/satijalab/seurat/issues/2025) will be performed on both the PCA and the harmony embedding values so the data can be visualized on 2-dimensional plots. More details of how to use *Harmony* in *Seurat* can be found in this [vignette](https://cran.r-project.org/web/packages/harmony/vignettes/Seurat.html).
 
+<p align ="center">
+<img width="1000" alt="image" src="https://github.com/user-attachments/assets/f29d4d53-e9a0-46fd-85d6-52245189f793">
+</p>
 
+```{r}
+#' Covarient: group.by.vars = "sample"
+#' In the covergence plot, Harmony objective function value should descend over each harmony_idx
+#' Generate plots in the supplementary figure 8B-D
+Rscript ./OVisium/R/Data_Preprocessing/Harmony_Integration_DimReduction.R
 
+#' Output file: OVisium_SCT_merged_dims.rds
+```
 
+#### 2.5. Determine the number of clusters
+The optimal number of clusters for the Visium data can be determined by the *clustree* R package, which utilizes [C7 (Gene730)](https://www.ncbi.nlm.nih.gov/gene/730) house keeping gene and [SC3 stability](https://pubmed.ncbi.nlm.nih.gov/28346451/) to visualize the clusterings, together with the morphological appearance of the tissue. The resolution of clustering is tested between 0.1 and 1 with 0.1 increasement in the *Seurat* `FindClusters` function.
 
+```{r}
+#' Perform clustering on PCA and Harmony data
+#' clustree plots for the supplementary figure 9
+Rscript ./OVisium/R/Data_Preprocessing/Choose_Number_Clusters.R
+
+#' Output file: OVisium_SCT_merged_clusters.rds
+
+#' Export clusters annotation for Loupe Browser
+Rscript ./OVisium/R/Help_functions/Export_Clusters_LoupeBrowser.R
+
+#' Subset and rename clusters based on the morphology
+Rscript ./OVisium/R/Help_functions/Subset_Rename_Clusters.R
+
+#' Plot clusters annotation spatially
+Rscript ./OVisium/R/Help_functions/Plot_Clusters_Spatial.R
+```
+
+#### 2.6 
