@@ -266,6 +266,7 @@ Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_Stroma_ComplexH
 #### 2.6.3 `FindMarkers` between Fimbrial and Proximal Tissues
 DEA on Visium samples from different part of the fallopian tubes from the same patient. Only 4 patients in our cohort have paired samples.
 
+The following steps are used in our OVisium data:
 1. Subset individual patient (no. 1, 3, 6 and 10)
 2. Scale and center *HarmonyLog2Data*.​
 3. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`:Fimbrial, `ident.2`:Proximal).
@@ -277,9 +278,30 @@ DEA on Visium samples from different part of the fallopian tubes from the same p
 
 ```{r}
 #' DEA between 8 clusters
-#' Generate complexheatmap
+#' Generate volcano plot for each patient
+#' Optional: generate complexheatmap for the bulk analysis
 Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_Patient_Volcano_ComplexHeatmap.R
 
-#' Output fold name: 2024-03-16_patient_pair 
+#' Output fold name: 2024-05-16_patient_pair 
 ```
+#### 2.6.4 `FindMarkers` between *BRCA*1 and *BRCA*2 Fimbrial
+We have 8 *BRCA*1 and 3 *BRCA*2 mutation carriers and total 14 fimbrial tissues.
 
+The follow steps are used in our OVisium data:
+1. Subset Fimbrial samples (14).
+2. Scale and center *HarmonyLog2Data*.​
+3. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`:BRCA1, `ident.2`:BRCA2).
+4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*`avg_log2FC`​
+5. Filter with `min.diff.pct` > 0.1.
+6. Top20: Filter abs(`avg_log2FC`) >= 0.25 and slice max by abs(`rank`).​
+7. Valcano plot: all DEGs with `pCutoff` = 10E-5 (adj_p_val) and `FCcutoff` = log2(1.5)
+8. Optional: bulk analysis through `AverageExpression` function on spots from either the same patient or the same mutational variant.
+
+```{r}
+#' DEA between 8 clusters
+#' Generate volcano plot for each patient
+#' Optional: generate complexheatmap for the bulk analysis
+Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_BRCA_Volcano_ComplexHeatmap.R
+
+#' Output fold name: 2024-05-16_mutation
+```
