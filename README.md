@@ -3,7 +3,7 @@
 
 ### OVisium data analysis workflow overview:
 <p align ="center">
-<img width="500" alt="image" src="https://github.com/NyKepler/OVisium/assets/111468388/7a712847-113a-4790-b8d5-3f6fe2333d29">
+<img width="800" alt="image" src="https://github.com/NyKepler/OVisium/assets/111468388/7a712847-113a-4790-b8d5-3f6fe2333d29">
 </p>
 
 ### Analysis of 10X Visium Spatial data
@@ -145,6 +145,7 @@ Rscript ./OVisium/R/Help_functions/Export_Clusters_LoupeBrowser.R
 Rscript ./OVisium/R/Help_functions/Subset_Rename_Clusters.R
 
 #' Plot clusters annotation spatially
+#' The optimal resolution based on morphology and preliminary DEG is 0.6 for the OVisium data 
 Rscript ./OVisium/R/Help_functions/Plot_Clusters_Spatial.R
 ```
 
@@ -158,7 +159,7 @@ The detail steps for the OVisium data:
 4. Perform HarmonyMatrix using sample id as covariant.
 
 $$
-HarmonyMatrix(log2(SCT\ Counts_{variable\ features} + 1))
+HarmonyLog2Data = HarmonyMatrix(log2(SCT\ Counts_{variable\ features} + 1))
 $$
 
 6. Subset away spots from cluster #4
@@ -168,6 +169,10 @@ $$
      -  Percentage of spots > 1% &​
      -  98 Percentile of log2(Data+1) > log2(2.5) &
      -  Remove genes contain: "^MT-", "^RP[SL]",  "^MTRNR", "^LINC"​
+
+<p align ="center">
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/b02ddba9-82b2-4a03-8a6a-7217baf80513">
+</p>
 
 ```{r}
 #' Input file: OVisium_SCT_merged_clust.rds
@@ -179,3 +184,82 @@ Rscript ./OVisium/R/Differential_Expression_Analysis/HarmonyMatrix_log2DataPlus1
 #' Filtered_spots_sample_cluster_annotation.csv
 ```
 
+#### 2.6.1 `FindMarkers` between Clusters using MAST 
+As a default, *Seurat* performs differential expression based on the non-parameteric Wilcoxon rank sum test. Here, we choose “MAST”, GLM-framework that treates cellular detection rate as a covariate ([Finak et al, Genome Biology, 2015](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-015-0844-5)).
+
+The following steps are used for the OVisium data:
+1. Scale and center *HarmonyLog2Data*.​
+2. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`, `ident.2`, 11x10).
+3. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*avg_log2FC​
+4. Filter with `min.diff.pct` > 0.1 or 0.25, abs(`avg_log2FC`) > log2(1.5 or 2.5) and abs(`rank`) > -log10(10E-5)* log2(1.5 or 2.5). Depends on `ident.1` & `ident.2` are from the same tissue compartment or not.
+5. Combine the results with the same `ident.1`.​
+6. Order they by `avg_log2FC` descending.​
+7. Remove duplicates with smaller `avg_log2FC`.​
+8. Top20 of each: group by `ident.2 and slice max by `rank`.​
+9. Merge all results from different `ident.1`.​
+10. Order they by `avg_log2FC` descending.​
+11. Remove duplicates with smaller `avg_log2FC`.
+12. Top20 of all: Filter `avg_log2FC` > log2(2), then group by `ident.1` and slice max by `rank`. 
+
+```{r}
+#' DEA between 11 clusters
+#' Generate complexheatmap Figure 3A in the manuscript
+Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_ComplexHeatmap.R
+
+#' Output folder name: 2024-04-20_harmony_sample_log2SCTcounts1
+```
+The results data frame has the following columns :
+- `p_val` : p_val (unadjusted)
+- `avg_log2FC` : log2 fold-chage of the average expression between the two groups. Positive values indicate that the feature is more highly expressed in the first group.
+- `pct.1` : The percentage of cells where the feature is detected in the first group `ident.1`
+- `pct.2` : The percentage of cells where the feature is detected in the second group `ident.2`
+- `p_val_adj` : Adjusted p-value, based on bonferroni correction using all features in the dataset.
+
+  
+#### 2.6.2 `FindMarkers` between Clusters within the Same Tissue Compartment
+In the OVisium data, we have 2 clusters from the epithelial compartment and 8 clusters from the stroma compartment. One mix cluster located on conjunction of epithelial and stroma is excluded in this analysis.
+
+##### FTE Clusters:
+1. Subset FTE clusters (0_FTE and 1_FTE)
+2. Scale and center *HarmonyLog2Data*.​
+3. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`, `ident.2`, 2x1).
+4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*avg_log2FC​
+5. Filter with `min.diff.pct` > 0.1, abs(`avg_log2FC`) > 0.25 and abs(`rank`) > -log10(10E-5)* 0.25.
+6. Combine the results with the same `ident.1`.​
+7. Order they by `avg_log2FC` descending.​
+8. Remove duplicates with smaller `avg_log2FC`.​
+9. Top20 of each: group by `ident.2` and slice max by `rank`.​
+10. Merge all results from different `ident.1`.​
+11. Order they by `avg_log2FC` descending.​
+12. Remove duplicates with smaller `avg_log2FC`.
+13. Top20 of all: Filter `avg_log2FC` > log2(1.5), then group by `ident.1` and slice max by `rank`. 
+
+```{r}
+#' DEA between 2 clusters
+#' Generate complexheatmap
+Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_FTE_ComplexHeatmap.R
+
+#' Output fold name: 2024-05-16_harmony_sample_log2SCTcounts1_FTE_only  
+```
+##### Stroma Clusters:
+1. Subset Stroma clusters (2, 5-11_Stroma)
+2. Scale and center *HarmonyLog2Data*.​
+3. Average difference of *HarmonyLog2Data* between the two groups (`ident.1`, `ident.2`, 8x7).
+4. Calculate the `rank`: -log10(p_val_adj+2.225074e-308)*avg_log2FC​
+5. Filter with `min.diff.pct` > 0.1, abs(`avg_log2FC`) > log2(1.5) and abs(`rank`) > -log10(10E-5)* log2(1.5).
+6. Combine the results with the same `ident.1`.​
+7. Order they by `avg_log2FC` descending.​
+8. Remove duplicates with smaller `avg_log2FC`.​
+9. Top20 of each: group by `ident.2` and slice max by `rank`.​
+10. Merge all results from different `ident.1`.​
+11. Order they by `avg_log2FC` descending.​
+12. Remove duplicates with smaller `avg_log2FC`.
+13. Top20 of all: Filter `avg_log2FC` > log2(2), then group by `ident.1` and slice max by `rank`. 
+
+```{r}
+#' DEA between 8 clusters
+#' Generate complexheatmap
+Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_Stroma_ComplexHeatmap.R
+
+#' Output fold name: 2024-05-04_harmony_sample_log2SCTcounts1_Stroma  
+```
