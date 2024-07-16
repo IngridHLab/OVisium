@@ -1,7 +1,7 @@
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/1_library.R", sep = "/"))
-source(paste(home, "OVisium/manuscript/gitHub/2_directory.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Load_Library.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
 
 
 file.name <- "OVisium_SCT_merged"
@@ -14,7 +14,7 @@ load(paste0(rds.dir, "/Variable_features_filt_SCT_log2counts+1_harmony.RData"))
 
 #' Choose the data file 
 data <- dat.deg  #' data <- data.sub.filt
-source(paste(home, "OVisium/manuscript/gitHub/ComplexHeatmap_settings.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/ComplexHeatmap_settings.R", sep = "/"))
 
 #' copy csv files to one place
 #' top 20 gene list
