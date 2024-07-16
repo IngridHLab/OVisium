@@ -3,9 +3,8 @@
 #' filtering based SCT QC
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/1_library.R", sep = "/"))
-source(paste(home, "OVisium/manuscript/gitHub/2_directory.R", sep = "/"))
-
+source(paste(home, "OVisium/R/Help_functions/Load_Library.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
 
 file.name <- "OVisium_SCT_merged" 
 cluster.ident <- "harmony_SCT_res_0.6"
@@ -25,7 +24,7 @@ m.harmony <- HarmonyMatrix(
   do_pca    = FALSE      # Since we are providing PCs, do not run PCA
 )
 
-m.harmony <- read_csv("~/OVisium/Annotation/SRIQ/All_clusters_vfeatureas_SCTcounts_log2+1_harmony_samples.csv") %>% as.matrix()
+#' m.harmony <- read_csv("~/OVisium/Annotation/SRIQ/All_clusters_vfeatureas_SCTcounts_log2+1_harmony_samples.csv") %>% as.matrix()
 data@assays[["SCT"]]@data <- Matrix(as.matrix(m.harmony), sparse = T)
 data@assays[["SCT"]]@counts <- Matrix(pmax(round(2^as.matrix(data@assays[["SCT"]]@data)-1, digits = 0),0), sparse = T)
 
