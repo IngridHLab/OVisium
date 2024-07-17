@@ -5,7 +5,7 @@
 #' https://satijalab.org/seurat/articles/spatial_vignette.html#integration-with-single-cell-data
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/10_choose_pca_dims.R", sep = "/"), 
+source(paste(home, "OVisium/R/Data_Preprocessing/Choose_Num_PCs.R", sep = "/"), 
        print.eval = TRUE, local = TRUE)
 
 #' load and process scRNAseq reference data and QC in the same way 
