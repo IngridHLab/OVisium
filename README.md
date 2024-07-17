@@ -274,15 +274,22 @@ The following steps are used in our OVisium data:
 5. Filter with `min.diff.pct` > 0.1.
 6. Top20: Filter abs(`avg_log2FC`) >= 0.25 and slice max by abs(`rank`).​
 7. Valcano plot: all DEGs with `pCutoff` = 10E-5 (adj_p_val) and `FCcutoff` = log2(1.5)
-8. Optional: bulk analysis through `AverageExpression` function on spots from either fimbrial or proximal of the same patient.
+8. Optional: bulk analysis through `AverageExpression` function to plot Top20 genes on fimbrial or proximal of the same patient.
 
 ```{r}
 #' Generate volcano plot for each patient
 #' Optional: generate complexheatmap for the bulk analysis
 Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_Patient_Volcano_ComplexHeatmap.R
 
-#' Output fold name: 2024-05-16_patient_pair 
+#' Output fold name: 2024-05-16_patient_pair
+
+#' Optional bulk analysis
+#' Complexheatmap split by ident.1
+Rscript ./OVisium/R/Differential_Expression_Analysis/AverageExpresion_id1_ComplexHeatmap.R
+#' Complexheatmap split by ident.2
+Rscript ./OVisium/R/Differential_Expression_Analysis/AverageExpresion_id2_ComplexHeatmap.R
 ```
+
 #### 2.6.4 `FindMarkers` between *BRCA*1 and *BRCA*2 Fimbrial
 We have 8 *BRCA*1 and 3 *BRCA*2 mutation carriers and total 14 fimbrial tissues.
 
@@ -294,7 +301,7 @@ The follow steps are used in our OVisium data:
 5. Filter with `min.diff.pct` > 0.1.
 6. Top20: Filter abs(`avg_log2FC`) >= 0.25 and slice max by abs(`rank`).​
 7. Valcano plot: all DEGs with `pCutoff` = 10E-5 (adj_p_val) and `FCcutoff` = log2(1.5)
-8. Optional: bulk analysis through `AverageExpression` function on spots from either the same patient or the same mutational variant.
+8. Optional: bulk analysis through `AverageExpression` function to plot Top20 genes on patient or mutational variant.
 
 ```{r}
 #' Generate volcano plot for each patient
@@ -302,4 +309,67 @@ The follow steps are used in our OVisium data:
 Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_BRCA_Volcano_ComplexHeatmap.R
 
 #' Output fold name: 2024-05-16_mutation
+
+#' Optional bulk analysis
+#' Complexheatmap split by ident.1
+Rscript ./OVisium/R/Differential_Expression_Analysis/AverageExpresion_id1_ComplexHeatmap.R
+#' Complexheatmap split by ident.2
+Rscript ./OVisium/R/Differential_Expression_Analysis/AverageExpresion_id2_ComplexHeatmap.R
 ```
+Other sources: 
+- [Seurat v4.3 DEA](https://satijalab.org/seurat/archive/v4.3/de_vignette)
+- [DEA workshop](https://github.com/hbctraining/DGE_workshop) provided by Harvard Chan Bioinformatics Core
+
+
+#### 2.7 Functional Annotation
+We use gene set enrichment analysis (GSEA) as well as gene over-representation analysis (Enrich) in the [clusterProfiler](https://yulab-smu.top/biomedical-knowledge-mining-book/index.html) to map the function annotation of those differential expressed genes. The functional annotation is obtained from [Molecular Signatures Database (MSigDB)](https://www.gsea-msigdb.org/gsea/msigdb) and [CellMarker 2.0](https://pubmed.ncbi.nlm.nih.gov/36300619/) which are manually curated from over 10 000 publications as well as scRNAseq data.
+
+**MSigDB** contains 9 major collections and the latest version can be downloaded from the homepage or the R package *msigdbr*:
+-   H: hallmark 
+-   C1: positional 
+-   C2: curated 
+-   C3: motif 
+-   C4: computational 
+-   C5: ontology 
+-   C6: oncogenic signature
+-   C7: immunologic signature
+-   C8: cell type signature 
+
+In order to run the GSEA in the *clusterProfiler*, we need to convert the gene name to NCBI Entrez gene id first. As the gene name/symbol from the 10X data can be different to the ones in the database due to multiple name or new name), we will use the ensembl id in our data to make it easier but they don't always link to each other well either. There are tools to convert multiple features at once however none of them can convert all at once. Many of those features failed to convert are pseudogene or none coding RNA or due to outdated database (usually for uncharacterized or noval genes). By combining different tools and database, we were able to convert 25312 of 36601 features from aggregated 10X Visium data:
+
+```{r}
+#' Spaceranger aggregated data folder: AGG_BRCA_18_20231018
+Rscript ./OVisium/R/Help_functions/Ensemble_To_Entrezid.R
+```
+
+#### 2.7.1 Gene Set Enrichment Analysis (GSEA):
+The individual DEA results from individual `ident.1` to others will be annotated to 9 major collections and 34550 gene sets from the **MSigDB** and over 15,000 Cell type biomarkers curated from the literatures as well as scRNAseq cell markers **CellMarker 2.0**. 
+
+For each DE gene list, the GSEA generates outputs in 36 folders with the names of annotation collections ex. "c1.all.v2023.2", and subfolders in each collection: 
+- **rds**: results save in rds format
+- **runplot**: gseaplot2 with running enrichment score on the y axis and preranked gene list on the x axis showing top 5 enriched gene annotations
+- **cnet**: cnetplot with gene names of the top 5 enriched gene annotations
+- **tsbar**: two-side barplot with normalized enrichment scores of top 10 enriched gene annotations
+
+```{r}
+#' Individual DE gene lists with comparison of `ident.1` to others 
+Rscript ./OVisium/R/Functional_Annotation_Analysis/GSEA_DEA_id1.R
+
+#' DE gene lists after combined the results from the same `ident.1` and differ by the `ident.2`
+Rscript ./OVisium/R/Functional_Annotation_Analysis/GSEA_DEA_id2.R
+```
+
+#### 2.7.2 Over-representation Analysis:
+
+Data preparation: create background data (universe) for hypergeometric
+testing using all genes from both the DEG and spatial variable analysis;
+Prepare a common gene list (common) of the DEG and spatial variable
+features.
+
+In this data set, the universe contains 1424 unique features and the
+common contains which contains 1330 unique features which have adjusted
+p-value below 0.01. Only 10 features couldn't obtain their Entrez ids
+and they are all lncRNA or novel transcripts (start with AL).
+
+Let's perform the over-representation analysis using human cell markers
+and single cell markers to functional annotate individual cluster:
