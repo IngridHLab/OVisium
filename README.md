@@ -325,7 +325,7 @@ Other sources:
 We use gene set enrichment analysis (GSEA) as well as gene over-representation analysis (Enrich) in the [clusterProfiler](https://yulab-smu.top/biomedical-knowledge-mining-book/index.html) to map the function annotation of those differential expressed genes. The functional annotation is obtained from [Molecular Signatures Database (MSigDB)](https://www.gsea-msigdb.org/gsea/msigdb) and [CellMarker 2.0](https://pubmed.ncbi.nlm.nih.gov/36300619/) which are manually curated from over 10 000 publications as well as scRNAseq data.
 
 **MSigDB** contains 9 major collections and the latest version can be downloaded from the homepage or the R package *msigdbr*:
--   H: hallmark 
+-   H: [hallmark](https://pubmed.ncbi.nlm.nih.gov/26771021/) 
 -   C1: positional 
 -   C2: curated 
 -   C3: motif 
@@ -376,3 +376,14 @@ The [over-representation analysis](https://academic.oup.com/bioinformatics/artic
 #' DE gene lists from the 2.6.3
 Rscript ./OVisium/R/Functional_Annotation_Analysis/Enrichment_Patients.R
 ```
+
+#### 2.8 Deconvolution
+Since it is not single cell resolution, we perfomed cell type deconvolution on individual spots using the scRNAseq reference data from normal-like fallopian tubes ([Ulrich et al. Development Cell 2022](https://pubmed.ncbi.nlm.nih.gov/35320732/)).  
+
+The methods in this study are adapted from [*10XGenomics*](https://www.10xgenomics.com/analysis-guides/integrating-single-cell-and-visium-spatial-gene-expression-data) using the [spacexr](https://www.nature.com/articles/s41587-021-00830-w) to map normal cell types in the normal-like fallopian tubes tissues, and [ecotyper](https://pubmed.ncbi.nlm.nih.gov/34597583/) to discover cell states and ecotypes in the tumor tissues. 
+
+#### 2.8.1 QC, filtering and integration of reference scRNAseq data
+
+#### 2.8.2 Robust cell type decomposition (RCTD) on the raw expression counts
+
+#### 2.8.3 DEGs Pearson correlation to identify cell type specific signatures
