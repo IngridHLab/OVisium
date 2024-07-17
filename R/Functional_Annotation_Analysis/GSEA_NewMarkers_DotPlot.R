@@ -1,8 +1,9 @@
 #' Visualization of differential gene expression on reference cell markers
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/1_library.R", sep = "/"))
-source(paste(home, "OVisium/manuscript/gitHub/2_directory.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Load_Library.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
+
 my_merge <- function(df1, df2){                                
   merge(df1, df2, by = "gene")
 }
