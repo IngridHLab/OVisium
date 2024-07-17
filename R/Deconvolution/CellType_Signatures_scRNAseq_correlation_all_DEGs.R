@@ -49,7 +49,7 @@ Idents(healthy.tubes) <- factor(Idents(healthy.tubes),
 #' load out DEG data
 setwd(deg.dir)
 features.id <- readRDS("features_EntrezID.rds")
-setwd("~/OVisium/Deconvolution_analysis/Correlation/All_DEGs")
+setwd("~/OVisium/R/Deconvolution/Correlation/All_DEGs")
 deg.file <- list.files(pattern = "*all.list.rds")
 name <- gsub(".list.*", "", deg.file)
 markers.list <- readRDS(deg.file) 
