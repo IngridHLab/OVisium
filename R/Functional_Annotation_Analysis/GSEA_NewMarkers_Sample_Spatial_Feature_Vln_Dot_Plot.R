@@ -2,8 +2,8 @@
 #' dotplot of markers in individual sample
 library(fs)
 home <- path_home()
-source(paste(home, "OVisium/manuscript/gitHub/1_library.R", sep = "/"))
-source(paste(home, "OVisium/manuscript/gitHub/2_directory.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Load_Library.R", sep = "/"))
+source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
 
 file.name <- "OVisium_SCT_merged"
 cluster.ident <- "harmony_SCT_res_0.6"
