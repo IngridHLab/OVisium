@@ -357,19 +357,22 @@ Rscript ./OVisium/R/Functional_Annotation_Analysis/GSEA_DEA_id1.R
 
 #' DE gene lists after combined the results from the same `ident.1` and differ by the `ident.2`
 Rscript ./OVisium/R/Functional_Annotation_Analysis/GSEA_DEA_id2.R
+
+#' Prepare figure 3 in the manuscript
+Rscript ./OVisium/R/Functional_Annotation_Analysis/GSEA_GO_Heatmaps_in_Fig3.R
+
+#' Generate feature plot, spatial feature plot, violin plot and dotplot for genes in the select annotation for individual sample
+#' Output folders are sorted by gene name or sample id
+Rscript ./OVisium/R/Functional_Annotation_Analysis/GSEA_NewMarkers_Sample_Spatial_Feature_Vln_Dot_Plot.R
+
+#' DE gene lists from the 2.6.3
+Rscript ./OVisium/R/Functional_Annotation_Analysis/GSEA_Patients.R
 ```
 
-#### 2.7.2 Over-representation Analysis:
+#### 2.7.2 Over-Representation Analysis (ORA):
+The [over-representation analysis](https://academic.oup.com/bioinformatics/article/20/18/3710/202612?login=false) tests the DE genes whether significantly over represented in the gene set by hypergeometric distribution without consideration of fold change, so we first split the genes into "Up" (FC > 1.5), "Down" (FC < 0.75) and everything between as "No Change". 
 
-Data preparation: create background data (universe) for hypergeometric
-testing using all genes from both the DEG and spatial variable analysis;
-Prepare a common gene list (common) of the DEG and spatial variable
-features.
-
-In this data set, the universe contains 1424 unique features and the
-common contains which contains 1330 unique features which have adjusted
-p-value below 0.01. Only 10 features couldn't obtain their Entrez ids
-and they are all lncRNA or novel transcripts (start with AL).
-
-Let's perform the over-representation analysis using human cell markers
-and single cell markers to functional annotate individual cluster:
+```{r}
+#' DE gene lists from the 2.6.3
+Rscript ./OVisium/R/Functional_Annotation_Analysis/Enrichment_Patients.R
+```
