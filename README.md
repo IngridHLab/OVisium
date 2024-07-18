@@ -380,10 +380,68 @@ Rscript ./OVisium/R/Functional_Annotation_Analysis/Enrichment_Patients.R
 #### 2.8 Deconvolution
 Since it is not single cell resolution, we perfomed cell type deconvolution on individual spots using the scRNAseq reference data from normal-like fallopian tubes ([Ulrich et al. Development Cell 2022](https://pubmed.ncbi.nlm.nih.gov/35320732/)).  
 
-The methods in this study are adapted from [*10XGenomics*](https://www.10xgenomics.com/analysis-guides/integrating-single-cell-and-visium-spatial-gene-expression-data) using the [spacexr](https://www.nature.com/articles/s41587-021-00830-w) to map normal cell types in the normal-like fallopian tubes tissues, and [ecotyper](https://pubmed.ncbi.nlm.nih.gov/34597583/) to discover cell states and ecotypes in the tumor tissues. 
+The methods in this study are adapted from [*10XGenomics*](https://www.10xgenomics.com/analysis-guides/integrating-single-cell-and-visium-spatial-gene-expression-data) using the [*spacexr*](https://www.nature.com/articles/s41587-021-00830-w) to map normal cell types in the normal-like fallopian tubes tissues, and [*ecotyper*](https://pubmed.ncbi.nlm.nih.gov/34597583/) to discover cell states and ecotypes in the tumor tissues. [*Seurat*](https://satijalab.org/seurat/articles/spatial_vignette.html#integration-with-single-cell-data) also provides workflow to integrate spatial and scRNAseq data. 
 
 #### 2.8.1 QC, filtering and integration of reference scRNAseq data
+Prepare the reference RNA expression data in a similar way described in section 2.3 using *Seurat* SCTransform and integration method to process the data. 
+Before SCTransform, the reference data was splited by donor id, and then applied additional filterings `Ribo.percent` > 5 & `log10GenesPerUMI` > 0.8. After SCT, data from different donors were merged and integrated. A very small portion of cells are missed annotated based on their original cell type annotation, but overall the clustering looks good. 
+
+<p align ="center">
+<img height="500" alt="lb_3" src="https://github.com/user-attachments/assets/f9b94460-c04f-406b-b3fc-5f931a48a82c"> 
+</p>
+
+```{r}
+#' Note, the reference data used ensembl id instead of gene symbol
+Rscript ./OVisium/R/Deconvolution/Spacexr_Ref_HealthyTube_Ulrich.R
+
+#' Output file
+healthyTubes_SCT_vIntegrated.rds
+```
 
 #### 2.8.2 Robust cell type decomposition (RCTD) on the raw expression counts
+RCTD applys supervised Parametric probability model to estimate cell type composition in each spot in the visium data. More details of the workflow can be found in one of their [tutorials](https://github.com/dmcable/spacexr/blob/master/README.md).  
+
+The RCTD applies directly on the raw RNA expression matrix of the individual Visium sample as well as the aggregated Visium data from the *spaceranger* standard output.
+
+Output files for individual sample include:
+- **xxx_weights.png**, cell type weight spatial plots
+- **xxx_binary weights.png**, cell type binary weight spatial plots with thresholds 75th percentile and median
+- **cell_type_nUMI.png**, Number of UMI counts spatial plot
+- **cell_type_occur.png**, Cell type occur histogram
+- **SpatialPie_cell_type_occur.png**, cell type occur in mini piechart with spatial coordinates for individual spots
+- **count_cell_type_clusters_table.csv**, a table with cell type counts in individual clusters
+- **weight_clusters_table.csv**, a table with cell type weight in individual spots
+- **norm_weight_clusters_table.csv**, a table with cell type normalized weight (probabilities sum to 1) in individual spots
+        
+<p align ="center">
+<img height="500" alt="lb_3" src="https://github.com/user-attachments/assets/5ffe2fa6-4a76-4b99-927a-2f3643cc543d"> 
+</p>
+
+Here we can compare the cell type composition to the morphology and the clusters annotation of the same spots. we also obtained the cell type composition in each cluster of all 18 samples. This further comfirm the morphological and molecular difference between the clusters, and different mixture of cell type in each cluster.
+
+```{r}
+#' RCTD analysis
+Rscript ./OVisium/R/Deconvolution/Spacexr_Visium_Full_Mode.R
+
+#' Comparison of BRCA1 and BRCA2 in Cell type count percentage
+Rscript ./OVisium/R/Deconvolution/Spacexr_CellType_Total_Count.R
+
+#' Pairwise comparison of Fimbrial and Proximal from BRCA1 carriers in Cell type count percentage
+Rscript ./OVisium/R/Deconvolution/Spacexr_CellType_Total_Count_Tissue.R
+```
+
+
+After deconvolution, Here we obtained cell type composition of each spot and I converted the data to mini piechart with spatial coordinates. 
+
+
+I also compared our Visium BRCA data to the scRNA normal-like and hydrosalpinx fallopian tube data. Our samples have over 50% epithelial cells which is corresponded well to the morphology of our tissue. As most of them are from the fimbrial part which are riched with epithelial cells.
+
+Issue with scRNAseq, porpotion of cell type in different study various a lot. Biological or technical (droplet recovering)
+
+Immune population is about 5% of all cell types. Most of them are macrophage and mature NK/T cells. 
+![image](https://github.com/user-attachments/assets/6c6f4dcb-7db0-45d7-8514-c03b249fa1b5)
+
 
 #### 2.8.3 DEGs Pearson correlation to identify cell type specific signatures
+
+#### 2.8.4 Ecotyper on HGSC 
