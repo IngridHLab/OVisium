@@ -403,45 +403,60 @@ RCTD applys supervised Parametric probability model to estimate cell type compos
 
 The RCTD applies directly on the raw RNA expression matrix of the individual Visium sample as well as the aggregated Visium data from the *spaceranger* standard output.
 
-Output files for individual sample include:
-- **xxx_weights.png**, cell type weight spatial plots
-- **xxx_binary weights.png**, cell type binary weight spatial plots with thresholds 75th percentile and median
-- **cell_type_nUMI.png**, Number of UMI counts spatial plot
-- **cell_type_occur.png**, Cell type occur histogram
-- **SpatialPie_cell_type_occur.png**, cell type occur in mini piechart with spatial coordinates for individual spots
-- **count_cell_type_clusters_table.csv**, a table with cell type counts in individual clusters
-- **weight_clusters_table.csv**, a table with cell type weight in individual spots
-- **norm_weight_clusters_table.csv**, a table with cell type normalized weight (probabilities sum to 1) in individual spots
+Output files for individual sample:
+- **xxx_weights.png**, cell type weight spatial plots.
+- **xxx_binary weights.png**, cell type binary weight spatial plots with thresholds 75th percentile and median.
+- **cell_type_nUMI.png**, Number of UMI counts spatial plot.
+- **cell_type_occur.png**, Cell type occur histogram.
+- **SpatialPie_cell_type_occur.png**, cell type occur in mini piechart with spatial coordinates for individual spots.
+- **count_cell_type_clusters_table.csv**, a table with cell type counts in individual clusters.
+- **weight_clusters_table.csv**, a table with cell type weight in individual spots.
+- **norm_weight_clusters_table.csv**, a table with cell type normalized weight (probabilities sum to 1) in individual spots.
+
+Output boxplots for the multiple samples:
+- **aggStack_cluster_pair_aggregated.png**, stack boxplot with percentage of aggregated counts of cell type in each cluster for patients with paired fimbrial and proximal samples.
+- **aggFill_cluster_pair_aggregated.png**, stack boxplot with aggregated counts of cell type in each cluster for patients with paired fimbrial and proximal samples.
+- **countStack_cluster_pair_aggregated.png**, stack boxplot with percentage of filtered counts of cell type in each cluster for patients with paired fimbrial and proximal samples.
+- **countFill_cluster_pair_aggregated.png**, stack boxplot with filtered counts of cell type in each cluster for patients with paired fimbrial and proximal samples.
+- **aggStack_cluster_all_aggregated.png**, stack boxplot with percentage of aggregated counts of cell type in each cluster for all samples.
+- **aggFill_cluster_all_aggregated.png**, stack boxplot with aggregated counts of cell type in each cluster for all samples.
+- **countStack_cluster_all_aggregated.png**, stack boxplot with percentage of filtered counts of cell type in each cluster for all samples.
+- **countFill_cluster_all_aggregated.png**, stack boxplot with filtered counts of cell type in each cluster for all samples.
         
 <p align ="center">
 <img height="500" alt="lb_3" src="https://github.com/user-attachments/assets/5ffe2fa6-4a76-4b99-927a-2f3643cc543d"> 
 </p>
 
-Here we can compare the cell type composition to the morphology and the clusters annotation of the same spots. we also obtained the cell type composition in each cluster of all 18 samples. This further comfirm the morphological and molecular difference between the clusters, and different mixture of cell type in each cluster.
+Here we can compare the cell type composition to the morphology and the clusters annotation of the same spots. We can plot cell type composition in each cluster of individuals, which further comfirm the morphological and cell type differences between the clusters.
 
 ```{r}
 #' RCTD analysis
 Rscript ./OVisium/R/Deconvolution/Spacexr_Visium_Full_Mode.R
 
-#' Comparison of BRCA1 and BRCA2 in Cell type count percentage
+#' Option: comparison of BRCA1 and BRCA2 in Cell type count percentage
 Rscript ./OVisium/R/Deconvolution/Spacexr_CellType_Total_Count.R
 
-#' Pairwise comparison of Fimbrial and Proximal from BRCA1 carriers in Cell type count percentage
+#' Option: pairwise comparison of Fimbrial and Proximal from BRCA1 carriers in Cell type count percentage
 Rscript ./OVisium/R/Deconvolution/Spacexr_CellType_Total_Count_Tissue.R
 ```
 
-
-After deconvolution, Here we obtained cell type composition of each spot and I converted the data to mini piechart with spatial coordinates. 
-
-
-I also compared our Visium BRCA data to the scRNA normal-like and hydrosalpinx fallopian tube data. Our samples have over 50% epithelial cells which is corresponded well to the morphology of our tissue. As most of them are from the fimbrial part which are riched with epithelial cells.
-
-Issue with scRNAseq, porpotion of cell type in different study various a lot. Biological or technical (droplet recovering)
-
-Immune population is about 5% of all cell types. Most of them are macrophage and mature NK/T cells. 
-![image](https://github.com/user-attachments/assets/6c6f4dcb-7db0-45d7-8514-c03b249fa1b5)
-
-
 #### 2.8.3 DEGs Pearson correlation to identify cell type specific signatures
+Inspired by the coldspring harbor [protocol](https://star-protocols.cell.com/protocols/1386) originated from [Cid et al. (2021)](https://doi.org/10.1016/j.celrep.2021.109229) to extract cell type sigantures in bulk-tissue RNAseq using reference scRNAseq data, we apply Pearson correlation to identify cell type sigantures from the differential expressed genes in the Visium data:
+1. Select DEGs from all 11 clusters in OVisium analysis.
+2. Used all DEGs from section 2.6.1.
+3. Paired-wise correlations of all individual cells using scRNAseq expression data for selected DEGs.
+4. PCA analysis with selected DEGs show some separation of different cell types.
+5. Filter genes with correlation > 0.5.
+6. Unsupervised hierarchical clustering (Pearson correlation, average linkage) to extract cell type DEG signatures using the cell type annotations in the reference data.
+7. Validate the cell type DEG signatures in the Visium clusters. 
+
+```{r}
+#' Use all DEGs
+Rscript ./OVisium/R/Deconvolution/CellType_Signatures_scRNAseq_correlation_all_DEGs.R
+
+#' Split the DEGs by log2FC > or <0 to upregulated or downregulated signatures
+Rscript ./OVisium/R/Deconvolution/CellType_Signatures_scRNAseq_correlation.R
+```
 
 #### 2.8.4 Ecotyper on HGSC 
+
