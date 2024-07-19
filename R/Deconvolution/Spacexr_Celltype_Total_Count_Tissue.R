@@ -7,7 +7,7 @@ source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
 #' set working directory to their spacexr output folder
 
 sample.name <- "POxx_x"
-setwd(paste(home, "OVisium/Deconvolution/Spacexr/Version_1_spaceranger/sample.name", sep = "))
+setwd(paste(home, "OVisium/Deconvolution_analysis/Spacexr/Version_1_spaceranger/sample.name", sep = "))
 count_cell_type_clusters_table <- readr::read_csv("count_cell_type_clusters_table.csv")         
 celltype.count<-count_cell_type_clusters_table %>% column_to_rownames("cluster")
 library(tidyverse)  
