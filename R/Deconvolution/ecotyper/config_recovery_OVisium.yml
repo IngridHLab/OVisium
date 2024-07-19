@@ -1,0 +1,17 @@
+default :
+  Input :    
+    Discovery dataset name : "Carcinoma"
+    Recovery dataset name : "Spatial"
+    Input Visium directory : "OVisium_data/OVisium_Carcinoma/OvCa707_2"
+    #Path to a file containing the precomputed cell fractions for the visium array
+    Recovery cell type fractions : "NULL" 
+    Background cell type : "Epithelial.cells"
+    CIBERSORTx username : minerva.li@med.lu.se
+    CIBERSORTx token : 50781fa113b3ecf64d8061bfad6fee94
+    
+  Output :
+    Output folder : "OVisiumOutput/OVisium_Carcinoma/OvCa707_2"
+    
+  Pipeline settings :
+    Number of threads : 10
+    CIBERSORTx fractions Singularity path : NULL
