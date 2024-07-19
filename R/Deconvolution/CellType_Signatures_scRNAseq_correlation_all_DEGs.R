@@ -49,7 +49,7 @@ Idents(healthy.tubes) <- factor(Idents(healthy.tubes),
 #' load out DEG data
 setwd(deg.dir)
 features.id <- readRDS("features_EntrezID.rds")
-setwd("~/OVisium/R/Deconvolution/Correlation/All_DEGs")
+setwd("~/OVisium/Deconvolution_analysis/Correlation/All_DEGs")
 deg.file <- list.files(pattern = "*all.list.rds")
 name <- gsub(".list.*", "", deg.file)
 markers.list <- readRDS(deg.file) 
@@ -224,7 +224,7 @@ load(paste0(rds.dir, "/Variable_features_filt_SCT_log2counts+1_harmony.RData"))
 #' Choose the data file 
 # data <- data.deg  
 data <- data.sub.filt
-source(paste(home, "OVisium/manuscript/gitHub/ComplexHeatmap_settings.R", sep = "/")) 
+source(paste(home, "OVisium/R/Help_functions/ComplexHeatmap_settings.R", sep = "/")) 
 #' Between clusters
 all.pat.data.bulk <- 
   AverageExpression(data, features = high_corr_reord$gene,
