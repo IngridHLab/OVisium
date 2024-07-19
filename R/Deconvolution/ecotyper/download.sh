@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 
 #' 2. Select the working directory and download the ecotyper github files:
 cd ./OVisium/R/Deconvolution
