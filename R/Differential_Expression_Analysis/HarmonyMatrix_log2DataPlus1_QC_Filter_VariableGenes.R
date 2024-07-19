@@ -24,7 +24,7 @@ m.harmony <- HarmonyMatrix(
   do_pca    = FALSE      # Since we are providing PCs, do not run PCA
 )
 
-#' m.harmony <- read_csv("~/OVisium/Annotation/SRIQ/All_clusters_vfeatureas_SCTcounts_log2+1_harmony_samples.csv") %>% as.matrix()
+#' m.harmony <- read_csv("~/OVisium/SRIQ/All_clusters_vfeatureas_SCTcounts_log2+1_harmony_samples.csv") %>% as.matrix()
 data@assays[["SCT"]]@data <- Matrix(as.matrix(m.harmony), sparse = T)
 data@assays[["SCT"]]@counts <- Matrix(pmax(round(2^as.matrix(data@assays[["SCT"]]@data)-1, digits = 0),0), sparse = T)
 
