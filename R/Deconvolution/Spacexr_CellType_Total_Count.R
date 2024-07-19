@@ -5,7 +5,7 @@ source(paste(home, "OVisium/R/Help_functions/Create_Directory.R", sep = "/"))
 
 #' 
 count_cell_type_clusters_table <- 
-  readr::read_csv("~/OVisium/Deconvolution/Spacexr/Version_1_spaceranger/AGG_BRCA_18/count_cell_type_clusters_table.csv")
+  readr::read_csv("~/OVisium/Deconvolution_analysis/Spacexr/Version_1_spaceranger/AGG_BRCA_18/count_cell_type_clusters_table.csv")
 
              
 celltype.count<-count_cell_type_clusters_table %>% column_to_rownames("cluster")
