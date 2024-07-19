@@ -206,6 +206,7 @@ The following steps are used for the OVisium data:
 #' Generate complexheatmap Figure 3A in the manuscript
 Rscript ./OVisium/R/Differential_Expression_Analysis/FindMarkers_ComplexHeatmap.R
 
+#' Output path: /DE_functional_analysis/OVisium_SCT_merged/harmony_SCT_res_0.6/Variable_features_filt/MAST/FindMarker
 #' Output folder name: 2024-04-20_harmony_sample_log2SCTcounts1
 ```
 The results data frame has the following columns :
