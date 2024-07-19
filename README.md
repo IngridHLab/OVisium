@@ -459,4 +459,24 @@ Rscript ./OVisium/R/Deconvolution/CellType_Signatures_scRNAseq_correlation.R
 ```
 
 #### 2.8.4 Ecotyper on HGSC 
+For High grade serous carcinoma Visium samples, we can use [ecoTyper](https://pubmed.ncbi.nlm.nih.gov/34597583/), a machine learning framework to identify cell states and multicellular communities. Through 12 major cell lineages across 16 types of human carcinoma, EcoTyper identified 69 transcriptionally defined cell states.
 
+```{bash}
+#' 1. Setup docker on terminal and add non-root user:
+./OVisium/R/Deconvolution/ecotyper/docker.sh
+
+#' 2. Select the working directory and download the ecotyper github files:
+#' 3. Edit config yml file to config_recovery_OVisium.yml:
+./OVisium/R/Deconvolution/ecotyper/download.sh
+./OVisium/R/Deconvolution/ecotyper/config_recovery_OVisium.yml
+
+#' 4. Manually copy filtered feature bc matrices and spatial tissue position list and high resolution image
+#' 5. In terminal run ecotyper Visium method for each sample:
+#' Edit the yml file: ./OVisium/R/Deconvolution/ecotyper/config_recovery_OVisium.yml
+#' Input Visium directory : "OVisium_data/OVisium_Carcinoma/`SampleID`"
+./OVisium/R/Deconvolution/ecotyper/recovery.sh
+
+#' 6. (Optional) In terminal run ecotyper scRNAseq method on individual sample:
+#' Use loupe browser to export matrices and cluster annotation files 
+Rscript EcoTyper_recovery_visium.R --discovery 'carcinoma' --matrix OVisium_data/OVisium_Carcinoma/`SampleID`
+```
